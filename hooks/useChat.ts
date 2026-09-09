@@ -18,8 +18,26 @@ import { useToast, type AttachmentOptionType } from 'amogamobileds-v1';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Location from 'expo-location';
-import * as FileSystem from 'expo-file-system/legacy';
+
+const getLocationModule = () => {
+  try {
+    return require('expo-location');
+  } catch {
+    return null;
+  }
+};
+
+const getFileSystemModule = () => {
+  try {
+    return require('expo-file-system/legacy');
+  } catch {
+    try {
+      return require('expo-file-system');
+    } catch {
+      return null;
+    }
+  }
+};
 
 export function useChat() {
   const { user, profile } = useAuth();
@@ -369,24 +387,31 @@ export function useChat() {
           let readableUri = asset.uri;
 
           if (Platform.OS !== 'web' && asset.uri) {
-            try {
-              // On Android, DocumentPicker cache path may not be readable directly.
-              // Copy the file to the app's own cache directory first.
-              const ext = fileName.split('.').pop() || 'dat';
-              const destPath = `${FileSystem.cacheDirectory}docpick_${Date.now()}.${ext}`;
-              await FileSystem.copyAsync({ from: asset.uri, to: destPath });
-              readableUri = destPath;
-            } catch (copyErr) {
-              console.warn('File copy notice (will try original URI):', copyErr);
-              readableUri = asset.uri;
-            }
+            const FileSystem = getFileSystemModule();
+            if (FileSystem) {
+              try {
+                // On Android, DocumentPicker cache path may not be readable directly.
+                // Copy the file to the app's own cache directory first.
+                const ext = fileName.split('.').pop() || 'dat';
+                const destPath = `${FileSystem.cacheDirectory || ''}docpick_${Date.now()}.${ext}`;
+                if (FileSystem.copyAsync) {
+                  await FileSystem.copyAsync({ from: asset.uri, to: destPath });
+                  readableUri = destPath;
+                }
+              } catch (copyErr) {
+                console.warn('File copy notice (will try original URI):', copyErr);
+                readableUri = asset.uri;
+              }
 
-            try {
-              base64Data = await FileSystem.readAsStringAsync(readableUri, {
-                encoding: FileSystem.EncodingType.Base64,
-              });
-            } catch (readErr) {
-              console.warn('Document base64 read notice:', readErr);
+              try {
+                if (FileSystem.readAsStringAsync && FileSystem.EncodingType) {
+                  base64Data = await FileSystem.readAsStringAsync(readableUri, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                }
+              } catch (readErr) {
+                console.warn('Document base64 read notice:', readErr);
+              }
             }
           }
 
@@ -421,6 +446,13 @@ export function useChat() {
         }
       } else if (type === 'location') {
         setIsSending(true);
+        const Location = getLocationModule();
+        if (!Location || !Location.requestForegroundPermissionsAsync) {
+          toast.info('Location service is not available on this platform');
+          setIsSending(false);
+          return;
+        }
+
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
           toast.info('Location permission is required to share location');
@@ -429,7 +461,7 @@ export function useChat() {
         }
 
         const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
+          accuracy: Location.Accuracy?.Balanced || 3,
         });
 
         const latitude = loc.coords.latitude;
@@ -437,12 +469,14 @@ export function useChat() {
 
         let address = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
         try {
-          const reverse = await Location.reverseGeocodeAsync({ latitude, longitude });
-          if (reverse && reverse.length > 0) {
-            const r = reverse[0];
-            const parts = [r.name, r.street, r.city, r.region, r.country].filter(Boolean);
-            if (parts.length > 0) {
-              address = parts.join(', ');
+          if (Location.reverseGeocodeAsync) {
+            const reverse = await Location.reverseGeocodeAsync({ latitude, longitude });
+            if (reverse && reverse.length > 0) {
+              const r = reverse[0];
+              const parts = [r.name, r.street, r.city, r.region, r.country].filter(Boolean);
+              if (parts.length > 0) {
+                address = parts.join(', ');
+              }
             }
           }
         } catch (geoErr) {
