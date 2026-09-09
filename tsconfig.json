@@ -1,0 +1,36 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@ds/*": ["../amogamobileds-v1/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../amogamobileds-v1/index.ts",
+    "../amogamobileds-v1/components/**/*.ts",
+    "../amogamobileds-v1/components/**/*.tsx",
+    "../amogamobileds-v1/hooks/**/*.ts",
+    "../amogamobileds-v1/hooks/**/*.tsx",
+    "../amogamobileds-v1/providers/**/*.ts",
+    "../amogamobileds-v1/providers/**/*.tsx",
+    "../amogamobileds-v1/theme/**/*.ts",
+    "../amogamobileds-v1/theme/**/*.tsx",
+    "../amogamobileds-v1/lib/**/*.ts",
+    "../amogamobileds-v1/lib/**/*.tsx",
+    "../amogamobileds-v1/declarations.d.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/node_modules/**",
+    "../amogamobileds-v1/node_modules/**",
+    "../amogamobileds-v1/app/**",
+    "../amogamobileds-v1/supabase/**",
+    "**/supabase/functions/**"
+  ]
+}
