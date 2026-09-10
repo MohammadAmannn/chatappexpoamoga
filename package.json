@@ -12,7 +12,7 @@
     "lint": "expo lint"
   },
   "dependencies": {
-    "amogamobileds-v1": "file:../amogamobileds-v1",
+    "amogamobileds-v1": "file:./packages/amogamobileds-v1",
     "@expo-google-fonts/open-sans": "^0.4.2",
     "@expo/metro-runtime": "~57.0.7",
     "@expo/vector-icons": "^15.0.2",

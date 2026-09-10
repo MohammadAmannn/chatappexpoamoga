@@ -4,12 +4,24 @@
     "strict": true,
     "paths": {
       "@/*": ["./*"],
-      "@ds/*": ["../amogamobileds-v1/*"]
+      "@ds/*": ["./packages/amogamobileds-v1/*", "../amogamobileds-v1/*"]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "packages/amogamobileds-v1/index.ts",
+    "packages/amogamobileds-v1/components/**/*.ts",
+    "packages/amogamobileds-v1/components/**/*.tsx",
+    "packages/amogamobileds-v1/hooks/**/*.ts",
+    "packages/amogamobileds-v1/hooks/**/*.tsx",
+    "packages/amogamobileds-v1/providers/**/*.ts",
+    "packages/amogamobileds-v1/providers/**/*.tsx",
+    "packages/amogamobileds-v1/theme/**/*.ts",
+    "packages/amogamobileds-v1/theme/**/*.tsx",
+    "packages/amogamobileds-v1/lib/**/*.ts",
+    "packages/amogamobileds-v1/lib/**/*.tsx",
+    "packages/amogamobileds-v1/declarations.d.ts",
     "../amogamobileds-v1/index.ts",
     "../amogamobileds-v1/components/**/*.ts",
     "../amogamobileds-v1/components/**/*.tsx",

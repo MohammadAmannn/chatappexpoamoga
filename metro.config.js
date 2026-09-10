@@ -3,13 +3,21 @@ const path = require('path');
 const fs = require('fs');
 
 const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, '..');
-const centralRepoRoot = path.resolve(workspaceRoot, 'amogamobileds-v1');
+// Look inside ./packages/amogamobileds-v1 first (self-contained inside the repo for Vercel/CI),
+// or fallback to sibling ../amogamobileds-v1 for local monorepos
+const localPackagesDs = path.resolve(projectRoot, 'packages', 'amogamobileds-v1');
+const siblingDs = path.resolve(projectRoot, '..', 'amogamobileds-v1');
+const centralRepoRoot = fs.existsSync(localPackagesDs)
+  ? localPackagesDs
+  : (fs.existsSync(siblingDs) ? siblingDs : null);
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch central design system repository for live updates
-config.watchFolders = [centralRepoRoot];
+const hasCentralRepo = !!centralRepoRoot;
+const dsRoot = centralRepoRoot || path.resolve(projectRoot, 'node_modules', 'amogamobileds-v1');
+
+// 1. Watch central design system repository for live updates (if present)
+config.watchFolders = hasCentralRepo ? [centralRepoRoot] : [];
 
 // 2. Resolve modules exclusively from project root to prevent duplicate react/lucide/expo instances
 config.resolver.nodeModulesPaths = [
@@ -17,11 +25,13 @@ config.resolver.nodeModulesPaths = [
 ];
 
 // 3. Block central repository's node_modules from being bundled
-config.resolver.blockList = [
-  new RegExp(
-    `^${path.resolve(centralRepoRoot, 'node_modules').replace(/[/\\]/g, '[/\\\\]')}.*`
-  ),
-];
+if (hasCentralRepo) {
+  config.resolver.blockList = [
+    new RegExp(
+      `^${path.resolve(centralRepoRoot, 'node_modules').replace(/[/\\]/g, '[/\\\\]')}.*`
+    ),
+  ];
+}
 
 /**
  * Resolve a bare path to an existing file by trying common TS/JS extensions.
@@ -65,7 +75,7 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   // @ds/ maps to the central design system root
   if (moduleName.startsWith('@ds/')) {
     const relativePath = moduleName.slice(4);
-    const basePath = path.resolve(centralRepoRoot, relativePath);
+    const basePath = path.resolve(dsRoot, relativePath);
     const resolved = resolveWithExtensions(basePath);
     if (resolved) {
       return { type: 'sourceFile', filePath: resolved };
@@ -75,7 +85,10 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 
   // amogamobileds-v1 maps to the central repo's index
   if (moduleName === 'amogamobileds-v1') {
-    return { type: 'sourceFile', filePath: path.resolve(centralRepoRoot, 'index.ts') };
+    const directIndex = path.resolve(dsRoot, 'index.ts');
+    if (fs.existsSync(directIndex)) {
+      return { type: 'sourceFile', filePath: directIndex };
+    }
   }
 
   if (defaultResolveRequest) {

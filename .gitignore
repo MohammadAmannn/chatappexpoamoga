@@ -40,9 +40,8 @@ Thumbs.db
 .vscode/
 *.tsbuildinfo
 
-# Prevent committing local design system folder if nested
-amogamobileds-v1/
-../amogamobileds-v1/
+# Local workspace references
+/amogamobileds-v1/
 
 # Expo CLI generated
 expo-env.d.ts
