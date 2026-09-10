@@ -7,8 +7,11 @@ import {
   Modal,
   Pressable,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { useTheme } from '@/providers/theme-provider';
+import { useModeContext } from '@/providers/mode-provider';
+import { useColorTheme } from '@/providers/color-theme-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useChat } from '@/hooks/useChat';
 import {
@@ -26,14 +29,20 @@ import {
   ChatIconBar,
   ChatActionMenu,
   ChatProfileModal,
+  ContactInfoView,
+  AppNavigationSidebar,
+  AppNavigationDrawer,
+  ComingSoonView,
+  ThemeSettingsDrawer,
+  DEFAULT_NAV_ITEMS,
   type ContactItem,
   type GroupItem,
 } from 'amogamobileds-v1';
 import { supabase } from '@/lib/supabase';
-import { UserPlus } from 'lucide-react-native';
+import { UserPlus, Palette, LogOut, Sparkles, Command, ChevronLeft, Menu } from 'lucide-react-native';
 
 export default function ChatWebScreen() {
-  const { colors, resolvedMode } = useTheme();
+  const { colors, resolvedMode, toggleMode } = useTheme();
   const isDark = resolvedMode === 'dark';
   const { user, profile, signOut } = useAuth();
   const toast = useToast();
@@ -63,6 +72,20 @@ export default function ChatWebScreen() {
     sendVoiceMessage,
   } = useChat();
 
+  const { width } = useWindowDimensions();
+  const isMobileOrTablet = width < 768;
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
+  const modeContext = useModeContext();
+  const { colorTheme, setColorTheme, resetColorTheme, colorThemes } = useColorTheme();
+
+  // Strictly keep mobile drawer closed when on desktop view
+  useEffect(() => {
+    if (!isMobileOrTablet) {
+      setIsDrawerOpen(false);
+    }
+  }, [isMobileOrTablet]);
+  const [mainNavId, setMainNavId] = useState<string>('chat');
   const [activeTab, setActiveTab] = useState('chats');
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [contacts, setContacts] = useState<ContactItem[]>([]);
@@ -70,7 +93,32 @@ export default function ChatWebScreen() {
   const [activeActionMsgId, setActiveActionMsgId] = useState<string | null>(null);
   const [actionMenuMsg, setActionMenuMsg] = useState<any | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
   const [externalReplyMap, setExternalReplyMap] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    setShowContactInfo(false);
+  }, [activeConversationId]);
+
+  const userInitials = useMemo(() => {
+    if (profile?.name) {
+      return profile.name
+        .split(' ')
+        .filter(Boolean)
+        .map((n: string) => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'MA';
+  }, [profile?.name, user?.email]);
+
+  const activeNavItem = useMemo(() => {
+    return DEFAULT_NAV_ITEMS.find((item) => item.id === mainNavId) || DEFAULT_NAV_ITEMS[0];
+  }, [mainNavId]);
 
   // Fast map of messages indexed by both id and sender_message_id
   const messageMap = useMemo(() => {
@@ -394,429 +442,616 @@ export default function ChatWebScreen() {
     );
   }, [contacts, otherMember, isDirect]);
 
-  // Auto-select first chat
+  // Auto-select first chat on desktop
   useEffect(() => {
-    if (!activeConversationId && conversations.length > 0) {
+    if (!isMobileOrTablet && !activeConversationId && conversations.length > 0) {
       setActiveConversationId(conversations[0].id);
     }
-  }, [conversations, activeConversationId, setActiveConversationId]);
+  }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
+
+  const showSidebar = !isMobileOrTablet || !activeConversationId;
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
-      {/* ──────────────── Left Sidebar with Tabs ──────────────── */}
-      <View style={styles.sidebarWrap}>
-        <ChatSidebar
-          tabs={[
-            { id: 'chats', label: 'Chats' },
-            { id: 'contact', label: 'Contact' },
-            { id: 'groups', label: 'Groups' },
-            { id: 'folder', label: 'Folder' },
-          ]}
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          searchValue={sidebarSearch}
-          onSearchChange={setSidebarSearch}
-          searchPlaceholder="Search..."
-          sectionLabel={activeTab.toUpperCase()}
-          sectionCount={
-            activeTab === 'chats'
-              ? filteredConversations.length
-              : activeTab === 'contact'
-                ? contacts.length
-                : groupsList.length
-          }
-        >
-          {/* TAB 1: CHATS */}
-          {activeTab === 'chats' && (
-            loadingConversations ? (
-              <View style={styles.centered}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
-            ) : filteredConversations.length === 0 ? (
-              <View style={styles.centered}>
-                <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
-                  No conversations yet
+      {/* ──────────────── Left Navigation Sidebar (Desktop View) ──────────────── */}
+      {!isMobileOrTablet && (
+        <AppNavigationSidebar
+          activeId={mainNavId}
+          onSelect={setMainNavId}
+          userInitials={userInitials}
+          userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
+          userSubtitle="Account"
+          onProfilePress={() => setIsProfileModalOpen(true)}
+          onThemePress={() => setIsThemeSettingsOpen(true)}
+          onSignOut={signOut}
+          onLogoPress={() => setMainNavId('chat')}
+          primaryColor={colors.primary}
+        />
+      )}
+
+      {/* ──────────────── Slide-out Navigation Drawer (Mobile Web & Mobile View Only) ──────────────── */}
+      {isMobileOrTablet && (
+        <AppNavigationDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          activeId={mainNavId}
+          onSelect={(id) => {
+            setMainNavId(id);
+            setIsDrawerOpen(false);
+          }}
+          workspaceName="Amoga App"
+          workspaceSubtitle="Workspace"
+          userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
+          userSubtitle="My Account"
+          userInitials={userInitials}
+          onProfilePress={() => setIsProfileModalOpen(true)}
+          primaryColor={colors.primary}
+        />
+      )}
+
+      {mainNavId === 'chat' ? (
+        <>
+          {/* ──────────────── Left Sidebar with Tabs ──────────────── */}
+          {showSidebar && (
+            <View
+              style={[
+                styles.sidebarWrap,
+                isMobileOrTablet && styles.sidebarWrapMobile,
+                {
+                  borderRightWidth: !isMobileOrTablet ? 1 : 0,
+                  borderRightColor: colors.border,
+                  backgroundColor: colors.background,
+                },
+              ]}
+            >
+              {/* On mobile/tablet only: show clean top bar with drawer button */}
+              {isMobileOrTablet && (
+                <View
+                  style={[
+                    styles.userTopBar,
+                    { borderBottomColor: colors.border },
+                  ]}
+                >
+                  <View style={styles.userRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => setIsDrawerOpen(true)}
+                      style={[
+                        styles.mobileLogoBadge,
+                        { backgroundColor: colors.primary, shadowColor: colors.primary },
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open Navigation Menu"
+                    >
+                      <Command size={18} color="#ffffff" strokeWidth={2.4} />
+                    </TouchableOpacity>
+
+                    <Text
+                      style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}
+                    >
+                      Chats
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              <ChatSidebar
+                tabs={[
+                  { id: 'chats', label: 'Chats' },
+                  { id: 'contact', label: 'Contact' },
+                  { id: 'groups', label: 'Groups' },
+                  { id: 'folder', label: 'Folder' },
+                ]}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                searchValue={sidebarSearch}
+                onSearchChange={setSidebarSearch}
+                searchPlaceholder="Search..."
+                sectionLabel={activeTab.toUpperCase()}
+                sectionCount={
+                  activeTab === 'chats'
+                    ? filteredConversations.length
+                    : activeTab === 'contact'
+                      ? contacts.length
+                      : groupsList.length
+                }
+              >
+                {/* TAB 1: CHATS */}
+                {activeTab === 'chats' && (
+                  loadingConversations ? (
+                    <View style={styles.centered}>
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    </View>
+                  ) : filteredConversations.length === 0 ? (
+                    <View style={styles.centered}>
+                      <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+                        No conversations yet
+                      </Text>
+                    </View>
+                  ) : (
+                    filteredConversations.map((item) => {
+                      const title =
+                        item.type === 'group'
+                          ? item.name || 'Group Chat'
+                          : item.otherMember?.name || item.otherMember?.email || 'Direct Chat';
+                      const lastMsg =
+                        item.lastMessage?.file_name ||
+                        item.lastMessage?.message ||
+                        (item.lastMessage?.file_url ? 'Attachment' : 'No messages yet');
+
+                      return (
+                        <ChatCardItem
+                          key={item.id}
+                          id={item.id}
+                          title={title}
+                          badgeLabel="Chat"
+                          lastMessage={lastMsg}
+                          time={item.lastMessage?.created_at ? new Date(item.lastMessage.created_at) : undefined}
+                          membersCount={item.membersCount || (item.type === 'group' ? (item.members?.length || 2) : 2)}
+                          onlineCount={item.otherMember?.online ? 1 : 0}
+                          unreadCount={item.unreadCount}
+                          isActive={item.id === activeConversationId}
+                          isGroup={item.type === 'group'}
+                          onClick={() => setActiveConversationId(item.id)}
+                        />
+                      );
+                    })
+                  )
+                )}
+
+                {/* TAB 2: CONTACTS */}
+                {activeTab === 'contact' && (
+                  <ContactManager
+                    contacts={contacts}
+                    onChatClick={handleContactChatClick}
+                    onAddContact={handleAddContact}
+                    onDeleteClick={handleDeleteContact}
+                  />
+                )}
+
+                {/* TAB 3: GROUPS */}
+                {activeTab === 'groups' && (
+                  <GroupManager
+                    groups={groupsList}
+                    contacts={contacts}
+                    onChatClick={(g) => {
+                      setActiveConversationId(g.id);
+                      setActiveTab('chats');
+                    }}
+                    onAddGroup={handleAddGroup}
+                  />
+                )}
+
+                {/* TAB 4: FOLDER */}
+                {activeTab === 'folder' && (
+                  <View style={{ padding: 16 }}>
+                    <Text style={{ color: colors.foreground, fontWeight: '600', marginBottom: 8 }}>
+                      Shared Documents & Files
+                    </Text>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
+                      All parsed PDFs and media files will appear here.
+                    </Text>
+                  </View>
+                )}
+              </ChatSidebar>
+            </View>
+          )}
+
+          {/* ──────────────── Right Detail Pane: Active Chat ──────────────── */}
+          {showDetailPane && (
+            <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
+              {/* On mobile: show top back button to return to chat list */}
+              {isMobileOrTablet && activeConversationId && (
+                <View
+                  style={[
+                    styles.mobileBackHeader,
+                    {
+                      borderBottomColor: colors.border,
+                      backgroundColor: colors.background,
+                    },
+                  ]}
+                >
+                  <TouchableOpacity
+                    onPress={() => setActiveConversationId(null)}
+                    style={styles.mobileBackBtn}
+                    accessibilityRole="button"
+                    accessibilityLabel="Back to chat list"
+                  >
+                    <ChevronLeft size={22} color={colors.foreground} />
+                    <Text style={[styles.mobileBackText, { color: colors.foreground }]}>
+                      Chats
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {activeConversationId ? (
+                showContactInfo ? (
+                  <ContactInfoView
+                    conversation={activeConversation}
+                    messages={messages}
+                    onClose={() => setShowContactInfo(false)}
+                  />
+                ) : (
+                  <>
+                    <ChatHeader
+                      title={chatTitle}
+                      subtitle={chatSubtitle}
+                      status={activeConversation?.otherMember?.online ? 'online' : 'offline'}
+                      isGroup={activeConversation?.type === 'group'}
+                      memberCount={activeConversation?.type === 'group' ? (activeConversation.membersCount || activeConversation.members?.length || 2) : undefined}
+                      showDefaultActions={true}
+                      onAvatarClick={() => setShowContactInfo(true)}
+                      onDelete={signOut}
+                    />
+
+                  {/* Receiver Contact Banner: Shown if receiver does not have sender in contacts */}
+                  {isDirect && otherMember && !isOtherInContacts && (
+                    <View
+                      style={[
+                        styles.notInContactBanner,
+                        {
+                          backgroundColor: `${colors.primary}15`,
+                          borderBottomColor: colors.border,
+                        },
+                      ]}
+                    >
+                      <View style={styles.notInContactBannerLeft}>
+                        <UserPlus size={16} color={colors.primary} />
+                        <Text
+                          style={[
+                            styles.notInContactBannerText,
+                            { color: colors.foreground },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          This user is not on your contact list.
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[
+                          styles.notInContactBannerBtn,
+                          { backgroundColor: colors.primary },
+                        ]}
+                        onPress={() =>
+                          handleAddContact({
+                            name: otherMember.name || otherMember.email?.split('@')[0] || 'Contact',
+                            email: otherMember.email || '',
+                          })
+                        }
+                      >
+                        <Text style={styles.notInContactBannerBtnText}>Click here to add</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+
+                  <ChatMessageList>
+                    {loadingMessages ? (
+                      <View style={styles.centered}>
+                        <ActivityIndicator size="large" color={colors.primary} />
+                      </View>
+                    ) : messages.length === 0 ? (
+                      <ChatEmptyState
+                        title="Say Hello 👋"
+                        description={`Start chatting with ${chatTitle}`}
+                        onAction={() => setInputText('Hello! 👋')}
+                        actionLabel="Send Greeting"
+                      />
+                    ) : (
+                      messages.map((msg) => {
+                        const isOwn = msg.owner_user_id === user?.id && msg.direction === 'Sent';
+                        const senderName = isOwn
+                          ? profile?.name || 'Mohammed Aman'
+                          : activeConversation?.otherMember?.name || 'Aman';
+
+                        let locationData: { latitude: number; longitude: number; address?: string; title?: string } | undefined = undefined;
+                        if (msg.message_type === 'location' && msg.file_url) {
+                          try {
+                            locationData = JSON.parse(msg.file_url);
+                          } catch (e) {
+                            // plain text fallback
+                          }
+                        }
+
+                        const isSelected = activeActionMsgId === msg.id;
+
+                        const isLocation = msg.message_type === 'location';
+                        const isMediaOrDoc =
+                          msg.file_url ||
+                          msg.message_type === 'image' ||
+                          msg.message_type === 'video' ||
+                          msg.message_type === 'document' ||
+                          msg.message_type === 'file' ||
+                          /\.(jpg|jpeg|png|webp|gif|mp4|mov|pdf|doc|docx)$/i.test(msg.file_name || msg.message || '');
+
+                        const hasFileAttachment = !isLocation && isMediaOrDoc;
+                        const attachmentUrl = msg.file_url || (msg.message && (msg.message.startsWith('http') || msg.message.startsWith('file:') || msg.message.startsWith('content:') || msg.message.startsWith('data:')) ? msg.message : undefined);
+
+                        // Resolve actual replied message for quote preview
+                        const targetReplyId = msg.replyto_message_id;
+                        const repliedMsg = targetReplyId
+                          ? (messageMap[targetReplyId] || externalReplyMap[targetReplyId] || null)
+                          : null;
+
+                        const isRepliedOwn = repliedMsg
+                          ? (repliedMsg.sender_user_id === user?.id || (('owner_user_id' in repliedMsg) && (repliedMsg as any).owner_user_id === user?.id && (repliedMsg as any).direction === 'Sent'))
+                          : false;
+
+                        const replyPreviewData = repliedMsg
+                          ? {
+                              id: targetReplyId || undefined,
+                              senderName: isRepliedOwn ? 'You' : (activeConversation?.otherMember?.name || activeConversation?.otherMember?.email?.split('@')[0] || 'Contact'),
+                              content:
+                                repliedMsg.message ||
+                                repliedMsg.file_name ||
+                                (repliedMsg.message_type === 'image'
+                                  ? '📷 Photo'
+                                  : repliedMsg.message_type === 'video'
+                                  ? '🎥 Video'
+                                  : repliedMsg.message_type === 'audio'
+                                  ? '🎤 Voice note'
+                                  : '📎 Attachment'),
+                            }
+                          : undefined;
+
+                        const handleTriggerReply = () => {
+                          setReplyMessage({
+                            id: msg.id,
+                            senderName: isOwn ? 'You' : senderName,
+                            content: msg.message || msg.file_name || 'Attachment',
+                          });
+                          toast.info(`Replying to ${isOwn ? 'yourself' : senderName}`);
+                        };
+
+                        return (
+                          <View key={msg.id} style={styles.messageRowWrapper}>
+                            <ChatBubble
+                              id={msg.id}
+                              isOwn={isOwn}
+                              senderName={senderName}
+                              content={isLocation ? undefined : (msg.message || undefined)}
+                              time={new Date(msg.created_at)}
+                              status={isOwn ? (msg.received ? 'read' : msg.sent ? 'sent' : 'sending') : undefined}
+                              location={locationData}
+                              isSelected={isSelected}
+                              onPress={() => setActiveActionMsgId(isSelected ? null : msg.id)}
+                              onReply={handleTriggerReply}
+                              attachments={
+                                hasFileAttachment
+                                  ? [
+                                      {
+                                        id: msg.id,
+                                        name: msg.file_name || (msg.message && /\.[a-z0-9]{3,4}$/i.test(msg.message) ? msg.message : 'Attachment'),
+                                        size: msg.file_size || 507904,
+                                        type: msg.message_type || (/\.(mp4|mov)$/i.test(msg.file_name || msg.message || '') ? 'video' : /\.(jpg|jpeg|png|webp)$/i.test(msg.file_name || msg.message || '') ? 'image' : 'pdf'),
+                                        statusText: 'Parsed',
+                                        url: attachmentUrl,
+                                      },
+                                    ]
+                                  : undefined
+                              }
+                              replyTo={replyPreviewData}
+                            />
+
+                            {/* Inline ChatIconBar */}
+                            {isSelected && (
+                              <View style={styles.iconBarWrapper}>
+                                <ChatIconBar
+                                  onReaction={(emoji) => {
+                                    handleSendReaction(msg.id, emoji);
+                                    setActiveActionMsgId(null);
+                                  }}
+                                  onReply={() => {
+                                    setReplyMessage({
+                                      id: msg.id,
+                                      senderName: isOwn ? 'You' : senderName,
+                                      content: msg.message || msg.file_name || 'Attachment',
+                                    });
+                                    setActiveActionMsgId(null);
+                                  }}
+                                  onForward={() => {
+                                    setForwardTargetMsg({
+                                      id: msg.id,
+                                      message: msg.message,
+                                      file_url: msg.file_url,
+                                      file_name: msg.file_name,
+                                      message_type: msg.message_type,
+                                    });
+                                    setActiveActionMsgId(null);
+                                  }}
+                                  onCopy={() => {
+                                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                      navigator.clipboard.writeText(msg.message || msg.file_url || '');
+                                    }
+                                    toast.success('Copied to clipboard');
+                                  }}
+                                  onShare={() => {
+                                    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                      navigator.clipboard.writeText(msg.message || msg.file_url || '');
+                                    }
+                                    toast.success('Message link copied to forward');
+                                    setActiveActionMsgId(null);
+                                  }}
+                                  onDelete={() => {
+                                    handleDeleteMessage(msg.id);
+                                    setActiveActionMsgId(null);
+                                  }}
+                                  onMore={() => {
+                                    setActionMenuMsg({
+                                      ...msg,
+                                      isOwn,
+                                      senderName,
+                                    });
+                                    setActiveActionMsgId(null);
+                                  }}
+                                />
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })
+                    )}
+
+                    {/* Realtime Typing Indicator */}
+                    {isOtherTyping && (
+                      <TypingIndicator
+                        label={`${activeConversation?.otherMember?.name || 'Someone'} is typing...`}
+                      />
+                    )}
+                  </ChatMessageList>
+
+                  <View style={styles.chatInputWrapper}>
+                    <ChatInput
+                      value={inputText}
+                      onChange={setInputText}
+                      onSend={handleSendMessage}
+                      isLoading={isSending}
+                      placeholder="Message"
+                      onSelectAttachmentType={handleSelectAttachmentType}
+                      onCameraClick={handleCameraClick}
+                      onTyping={sendTypingStatus}
+                      onVoiceRecordComplete={(uri: string, dur: number) => sendVoiceMessage(uri, dur)}
+                      replyMessage={
+                        replyMessage
+                          ? {
+                              senderName: replyMessage.senderName,
+                              content: replyMessage.content,
+                              onClear: () => setReplyMessage(null),
+                            }
+                          : undefined
+                      }
+                    />
+                  </View>
+
+                  {/* Action Menu Modal */}
+                  <Modal
+                    visible={!!actionMenuMsg}
+                    transparent
+                    animationType="fade"
+                    onRequestClose={() => setActionMenuMsg(null)}
+                  >
+                    <Pressable
+                      style={styles.actionMenuBackdrop}
+                      onPress={() => setActionMenuMsg(null)}
+                    >
+                      <View style={styles.actionMenuCardWrap}>
+                        <ChatActionMenu
+                          isOpen={true}
+                          isOwnMessage={actionMenuMsg?.isOwn}
+                          onClose={() => setActionMenuMsg(null)}
+                          onSelect={(actionId: string) => {
+                            if (!actionMenuMsg) return;
+                            const cur = actionMenuMsg;
+                            if (actionId === 'reply') {
+                              setReplyMessage({
+                                id: cur.id,
+                                senderName: cur.isOwn ? 'You' : cur.senderName,
+                                content: cur.message || cur.file_name || 'Attachment',
+                              });
+                              toast.info('Replying to message');
+                            } else if (actionId === 'forward') {
+                              if (typeof navigator !== 'undefined' && navigator.clipboard) {
+                                navigator.clipboard.writeText(cur.message || cur.file_url || '');
+                              }
+                              toast.success('Message copied for forwarding');
+                            } else if (actionId === 'delete-for-me') {
+                              handleDeleteMessage(cur.id, 'me');
+                            } else if (actionId === 'delete-for-everyone') {
+                              handleDeleteMessage(cur.id, 'everyone');
+                            } else if (actionId === 'delete') {
+                              handleDeleteMessage(cur.id, cur.isOwn ? 'everyone' : 'me');
+                            } else if (actionId === 'pin') {
+                              toast.success('Message pinned');
+                            } else if (actionId === 'star') {
+                              toast.success('Message starred');
+                            } else if (actionId === 'favorite') {
+                              toast.success('Added to favorites');
+                            } else if (actionId === 'archive') {
+                              toast.success('Conversation archived');
+                            }
+                            setActionMenuMsg(null);
+                          }}
+                        />
+                      </View>
+                    </Pressable>
+                  </Modal>
+                </>
+                )
+              ) : (
+                <View style={styles.centered}>
+                  <ChatEmptyState
+                    title="Welcome to Amoga Chat"
+                    description="Select a conversation from the sidebar or start a new chat."
+                    onAction={() => setActiveTab('contact')}
+                    actionLabel="View Contacts"
+                  />
+                </View>
+              )}
+            </View>
+          )}
+        </>
+      ) : (
+        /* ──────────────── Coming Soon View for Other Menu Items ──────────────── */
+        <View style={[styles.comingSoonWrap, { backgroundColor: colors.background }]}>
+          {isMobileOrTablet && (
+            <View
+              style={[
+                styles.userTopBar,
+                { borderBottomColor: colors.border },
+              ]}
+            >
+              <View style={styles.userRow}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setIsDrawerOpen(true)}
+                  style={[
+                    styles.mobileLogoBadge,
+                    { backgroundColor: colors.primary, shadowColor: colors.primary },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Navigation Menu"
+                >
+                  <Command size={18} color="#ffffff" strokeWidth={2.4} />
+                </TouchableOpacity>
+                <Text
+                  style={[styles.topBarTitle, { color: colors.foreground }]}
+                >
+                  {activeNavItem.label}
                 </Text>
               </View>
-            ) : (
-              filteredConversations.map((item) => {
-                const title =
-                  item.type === 'group'
-                    ? item.name || 'Group Chat'
-                    : item.otherMember?.name || item.otherMember?.email || 'Direct Chat';
-                const lastMsg =
-                  item.lastMessage?.file_name ||
-                  item.lastMessage?.message ||
-                  (item.lastMessage?.file_url ? 'Attachment' : 'No messages yet');
-
-                return (
-                  <ChatCardItem
-                    key={item.id}
-                    id={item.id}
-                    title={title}
-                    badgeLabel="Chat"
-                    lastMessage={lastMsg}
-                    time={item.lastMessage?.created_at ? new Date(item.lastMessage.created_at) : undefined}
-                    membersCount={item.membersCount || (item.type === 'group' ? (item.members?.length || 2) : 2)}
-                    onlineCount={item.otherMember?.online ? 1 : 0}
-                    unreadCount={item.unreadCount}
-                    isActive={item.id === activeConversationId}
-                    isGroup={item.type === 'group'}
-                    onClick={() => setActiveConversationId(item.id)}
-                  />
-                );
-              })
-            )
-          )}
-
-          {/* TAB 2: CONTACTS */}
-          {activeTab === 'contact' && (
-            <ContactManager
-              contacts={contacts}
-              onChatClick={handleContactChatClick}
-              onAddContact={handleAddContact}
-              onDeleteClick={handleDeleteContact}
-            />
-          )}
-
-          {/* TAB 3: GROUPS */}
-          {activeTab === 'groups' && (
-            <GroupManager
-              groups={groupsList}
-              contacts={contacts}
-              onChatClick={(g) => {
-                setActiveConversationId(g.id);
-                setActiveTab('chats');
-              }}
-              onAddGroup={handleAddGroup}
-            />
-          )}
-
-          {/* TAB 4: FOLDER */}
-          {activeTab === 'folder' && (
-            <View style={{ padding: 16 }}>
-              <Text style={{ color: colors.foreground, fontWeight: '600', marginBottom: 8 }}>
-                Shared Documents & Files
-              </Text>
-              <Text style={{ color: colors.mutedForeground, fontSize: 13 }}>
-                All parsed PDFs and media files will appear here.
-              </Text>
             </View>
           )}
-        </ChatSidebar>
-      </View>
+          <ComingSoonView
+            title={activeNavItem.label}
+            icon={activeNavItem.icon}
+            onGoToChat={() => setMainNavId('chat')}
+          />
+        </View>
+      )}
 
-      {/* ──────────────── Right Detail Pane: Active Chat ──────────────── */}
-      <View style={[styles.rightViewport, { backgroundColor: isDark ? '#121215' : '#ffffff' }]}>
-        {activeConversationId ? (
-          <>
-            <ChatHeader
-              title={chatTitle}
-              subtitle={chatSubtitle}
-              status={activeConversation?.otherMember?.online ? 'online' : 'offline'}
-              isGroup={activeConversation?.type === 'group'}
-              memberCount={activeConversation?.type === 'group' ? (activeConversation.membersCount || activeConversation.members?.length || 2) : undefined}
-              showDefaultActions={true}
-              onAvatarClick={() => setIsProfileModalOpen(true)}
-              onDelete={signOut}
-            />
+      {/* Global Profile Modal */}
+      <ChatProfileModal
+        visible={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        conversation={activeConversation}
+        messages={messages}
+      />
 
-            {/* Receiver Contact Banner: Shown if receiver does not have sender in contacts */}
-            {isDirect && otherMember && !isOtherInContacts && (
-              <View
-                style={[
-                  styles.notInContactBanner,
-                  {
-                    backgroundColor: isDark ? '#1e1b4b' : '#eef2ff',
-                    borderBottomColor: isDark ? '#3730a3' : '#c7d2fe',
-                  },
-                ]}
-              >
-                <View style={styles.notInContactBannerLeft}>
-                  <UserPlus size={16} color={isDark ? '#a5b4fc' : '#4f46e5'} />
-                  <Text
-                    style={[
-                      styles.notInContactBannerText,
-                      { color: isDark ? '#e0e7ff' : '#312e81' },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    This user is not on your contact list.
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.notInContactBannerBtn,
-                    { backgroundColor: isDark ? '#4f46e5' : '#4338ca' },
-                  ]}
-                  onPress={() =>
-                    handleAddContact({
-                      name: otherMember.name || otherMember.email?.split('@')[0] || 'Contact',
-                      email: otherMember.email || '',
-                    })
-                  }
-                >
-                  <Text style={styles.notInContactBannerBtnText}>Click here to add</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <ChatMessageList>
-              {loadingMessages ? (
-                <View style={styles.centered}>
-                  <ActivityIndicator size="large" color={colors.primary} />
-                </View>
-              ) : messages.length === 0 ? (
-                <ChatEmptyState
-                  title="Say Hello 👋"
-                  description={`Start chatting with ${chatTitle}`}
-                  onAction={() => setInputText('Hello! 👋')}
-                  actionLabel="Send Greeting"
-                />
-              ) : (
-                messages.map((msg) => {
-                  const isOwn = msg.owner_user_id === user?.id && msg.direction === 'Sent';
-                  const senderName = isOwn
-                    ? profile?.name || 'Mohammed Aman'
-                    : activeConversation?.otherMember?.name || 'Aman';
-
-                  let locationData: { latitude: number; longitude: number; address?: string; title?: string } | undefined = undefined;
-                  if (msg.message_type === 'location' && msg.file_url) {
-                    try {
-                      locationData = JSON.parse(msg.file_url);
-                    } catch (e) {
-                      // plain text fallback
-                    }
-                  }
-
-                  const isSelected = activeActionMsgId === msg.id;
-
-                  const isLocation = msg.message_type === 'location';
-                  const isMediaOrDoc =
-                    msg.file_url ||
-                    msg.message_type === 'image' ||
-                    msg.message_type === 'video' ||
-                    msg.message_type === 'document' ||
-                    msg.message_type === 'file' ||
-                    /\.(jpg|jpeg|png|webp|gif|mp4|mov|pdf|doc|docx)$/i.test(msg.file_name || msg.message || '');
-
-                  const hasFileAttachment = !isLocation && isMediaOrDoc;
-                  const attachmentUrl = msg.file_url || (msg.message && (msg.message.startsWith('http') || msg.message.startsWith('file:') || msg.message.startsWith('content:') || msg.message.startsWith('data:')) ? msg.message : undefined);
-
-                  // Resolve actual replied message for quote preview
-                  const targetReplyId = msg.replyto_message_id;
-                  const repliedMsg = targetReplyId
-                    ? (messageMap[targetReplyId] || externalReplyMap[targetReplyId] || null)
-                    : null;
-
-                  const isRepliedOwn = repliedMsg
-                    ? (repliedMsg.sender_user_id === user?.id || (('owner_user_id' in repliedMsg) && (repliedMsg as any).owner_user_id === user?.id && (repliedMsg as any).direction === 'Sent'))
-                    : false;
-
-                  const replyPreviewData = repliedMsg
-                    ? {
-                        id: targetReplyId || undefined,
-                        senderName: isRepliedOwn ? 'You' : (activeConversation?.otherMember?.name || activeConversation?.otherMember?.email?.split('@')[0] || 'Contact'),
-                        content:
-                          repliedMsg.message ||
-                          repliedMsg.file_name ||
-                          (repliedMsg.message_type === 'image'
-                            ? '📷 Photo'
-                            : repliedMsg.message_type === 'video'
-                            ? '🎥 Video'
-                            : repliedMsg.message_type === 'audio'
-                            ? '🎤 Voice note'
-                            : '📎 Attachment'),
-                      }
-                    : undefined;
-
-                  const handleTriggerReply = () => {
-                    setReplyMessage({
-                      id: msg.id,
-                      senderName: isOwn ? 'You' : senderName,
-                      content: msg.message || msg.file_name || 'Attachment',
-                    });
-                    toast.info(`Replying to ${isOwn ? 'yourself' : senderName}`);
-                  };
-
-                  return (
-                    <View key={msg.id} style={styles.messageRowWrapper}>
-                      <ChatBubble
-                        id={msg.id}
-                        isOwn={isOwn}
-                        senderName={senderName}
-                        content={isLocation ? undefined : (msg.message || undefined)}
-                        time={new Date(msg.created_at)}
-                        status={isOwn ? (msg.received ? 'read' : msg.sent ? 'sent' : 'sending') : undefined}
-                        location={locationData}
-                        isSelected={isSelected}
-                        onPress={() => setActiveActionMsgId(isSelected ? null : msg.id)}
-                        onReply={handleTriggerReply}
-                        attachments={
-                          hasFileAttachment
-                            ? [
-                                {
-                                  id: msg.id,
-                                  name: msg.file_name || (msg.message && /\.[a-z0-9]{3,4}$/i.test(msg.message) ? msg.message : 'Attachment'),
-                                  size: msg.file_size || 507904,
-                                  type: msg.message_type || (/\.(mp4|mov)$/i.test(msg.file_name || msg.message || '') ? 'video' : /\.(jpg|jpeg|png|webp)$/i.test(msg.file_name || msg.message || '') ? 'image' : 'pdf'),
-                                  statusText: 'Parsed',
-                                  url: attachmentUrl,
-                                },
-                              ]
-                            : undefined
-                        }
-                        replyTo={replyPreviewData}
-                      />
-
-                      {/* Inline ChatIconBar */}
-                      {isSelected && (
-                        <View style={styles.iconBarWrapper}>
-                          <ChatIconBar
-                            onReply={() => {
-                              setReplyMessage({
-                                id: msg.id,
-                                senderName: isOwn ? 'You' : senderName,
-                                content: msg.message || msg.file_name || 'Attachment',
-                              });
-                              setActiveActionMsgId(null);
-                            }}
-                            onCopy={() => {
-                              if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                navigator.clipboard.writeText(msg.message || msg.file_url || '');
-                              }
-                              toast.success('Copied to clipboard');
-                            }}
-                            onShare={() => {
-                              if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                                navigator.clipboard.writeText(msg.message || msg.file_url || '');
-                              }
-                              toast.success('Message link copied to forward');
-                              setActiveActionMsgId(null);
-                            }}
-                            onDelete={() => {
-                              handleDeleteMessage(msg.id);
-                              setActiveActionMsgId(null);
-                            }}
-                            onMore={() => {
-                              setActionMenuMsg({
-                                ...msg,
-                                isOwn,
-                                senderName,
-                              });
-                              setActiveActionMsgId(null);
-                            }}
-                          />
-                        </View>
-                      )}
-                    </View>
-                  );
-                })
-              )}
-
-              {/* Realtime Typing Indicator */}
-              {isOtherTyping && (
-                <TypingIndicator
-                  label={`${activeConversation?.otherMember?.name || 'Someone'} is typing...`}
-                />
-              )}
-            </ChatMessageList>
-
-            <View style={styles.chatInputWrapper}>
-              <ChatInput
-                value={inputText}
-                onChange={setInputText}
-                onSend={handleSendMessage}
-                isLoading={isSending}
-                placeholder="Message"
-                onSelectAttachmentType={handleSelectAttachmentType}
-                onCameraClick={handleCameraClick}
-                onTyping={sendTypingStatus}
-                onVoiceRecordComplete={(uri, dur) => sendVoiceMessage(uri, dur)}
-                replyMessage={
-                  replyMessage
-                    ? {
-                        senderName: replyMessage.senderName,
-                        content: replyMessage.content,
-                        onClear: () => setReplyMessage(null),
-                      }
-                    : undefined
-                }
-              />
-            </View>
-
-            {/* Action Menu Modal */}
-            <Modal
-              visible={!!actionMenuMsg}
-              transparent
-              animationType="fade"
-              onRequestClose={() => setActionMenuMsg(null)}
-            >
-              <Pressable
-                style={styles.actionMenuBackdrop}
-                onPress={() => setActionMenuMsg(null)}
-              >
-                <View style={styles.actionMenuCardWrap}>
-                  <ChatActionMenu
-                    isOpen={true}
-                    isOwnMessage={actionMenuMsg?.isOwn}
-                    onClose={() => setActionMenuMsg(null)}
-                    onSelect={(actionId) => {
-                      if (!actionMenuMsg) return;
-                      const cur = actionMenuMsg;
-                      if (actionId === 'reply') {
-                        setReplyMessage({
-                          id: cur.id,
-                          senderName: cur.isOwn ? 'You' : cur.senderName,
-                          content: cur.message || cur.file_name || 'Attachment',
-                        });
-                        toast.info('Replying to message');
-                      } else if (actionId === 'forward') {
-                        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-                          navigator.clipboard.writeText(cur.message || cur.file_url || '');
-                        }
-                        toast.success('Message copied for forwarding');
-                      } else if (actionId === 'delete-for-me') {
-                        handleDeleteMessage(cur.id, 'me');
-                      } else if (actionId === 'delete-for-everyone') {
-                        handleDeleteMessage(cur.id, 'everyone');
-                      } else if (actionId === 'delete') {
-                        handleDeleteMessage(cur.id, cur.isOwn ? 'everyone' : 'me');
-                      } else if (actionId === 'pin') {
-                        toast.success('Message pinned');
-                      } else if (actionId === 'star') {
-                        toast.success('Message starred');
-                      } else if (actionId === 'favorite') {
-                        toast.success('Added to favorites');
-                      } else if (actionId === 'archive') {
-                        toast.success('Conversation archived');
-                      }
-                      setActionMenuMsg(null);
-                    }}
-                  />
-                </View>
-              </Pressable>
-            </Modal>
-
-            {/* Telegram-Style Shared Media & Profile Modal */}
-            <ChatProfileModal
-              visible={isProfileModalOpen}
-              onClose={() => setIsProfileModalOpen(false)}
-              conversation={activeConversation}
-              messages={messages}
-            />
-          </>
-        ) : (
-          <View style={styles.centered}>
-            <ChatEmptyState
-              title="Welcome to Amoga Chat"
-              description="Select a conversation from the sidebar or start a new chat."
-              onAction={() => setActiveTab('contact')}
-              actionLabel="View Contacts"
-            />
-          </View>
-        )}
-      </View>
+      {/* Tweakcn Theme Settings Drawer (Web Only) */}
+      <ThemeSettingsDrawer
+        isOpen={isThemeSettingsOpen}
+        onClose={() => setIsThemeSettingsOpen(false)}
+        appearanceMode={modeContext?.mode || 'system'}
+        onModeChange={(m) => modeContext?.setMode(m)}
+        currentColorTheme={colorTheme}
+        onColorThemeChange={setColorTheme}
+        onResetTheme={() => {
+          modeContext?.setMode('light');
+          resetColorTheme();
+        }}
+        availableThemes={colorThemes}
+      />
     </View>
   );
 }
@@ -831,16 +1066,110 @@ const styles = StyleSheet.create({
     width: 320,
     height: '100%',
   },
+  sidebarWrapMobile: {
+    width: '100%',
+    flex: 1,
+  },
+  mobileLogoBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: '#7c3aed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 6,
+  },
+  userInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  mobileBackHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+  },
+  mobileBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    gap: 4,
+  },
+  mobileBackText: {
+    fontSize: 14,
+    fontWeight: '600',
+    fontFamily: 'Open Sans',
+  },
+  comingSoonWrap: {
+    flex: 1,
+    height: '100%',
+  },
+  userTopBar: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  avatarCircleSmall: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarTextSmall: {
+    fontSize: 13,
+    fontWeight: '700',
+    fontFamily: 'Open Sans',
+  },
+  topBarTitle: {
+    fontSize: 13.5,
+    fontWeight: '600',
+    fontFamily: 'Open Sans',
+    flex: 1,
+  },
+  userActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  topIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rightViewport: {
     flex: 1,
     height: '100%',
     display: 'flex' as any,
     flexDirection: 'column',
     borderLeftWidth: 1,
-    borderLeftColor: '#f1f5f9',
+  },
+  comingSoonWrap: {
+    flex: 1,
+    height: '100%',
+    width: '100%',
+    display: 'flex' as any,
+    flexDirection: 'column',
   },
   chatInputWrapper: {
-    paddingBottom: 4,
+    paddingHorizontal: 18,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   messageRowWrapper: {
     position: 'relative',

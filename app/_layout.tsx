@@ -7,11 +7,34 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import React, { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 import { useFonts } from 'expo-font';
-import { OpenSans_400Regular } from '@expo-google-fonts/open-sans/400Regular';
-import { OpenSans_500Medium } from '@expo-google-fonts/open-sans/500Medium';
+import {
+  OpenSans_300Light,
+  OpenSans_400Regular,
+  OpenSans_500Medium,
+  OpenSans_600SemiBold,
+  OpenSans_700Bold,
+  OpenSans_800ExtraBold,
+} from '@expo-google-fonts/open-sans';
+
+// Web font injection identical to amogawebexpods
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const fontLinkId = 'amoga-open-sans-webfont';
+  if (!document.getElementById(fontLinkId)) {
+    const fontStyle = document.createElement('style');
+    fontStyle.id = fontLinkId;
+    fontStyle.innerHTML = `
+      @import url('https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap');
+      body, button, input, textarea, select {
+        font-family: 'Open Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      }
+    `;
+    document.head.appendChild(fontStyle);
+  }
+}
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -57,8 +80,17 @@ function ThemedStatusBar() {
 
 export default function RootLayout() {
   const [fontsLoaded, fontError] = useFonts({
+    OpenSans_300Light,
+    OpenSans_400Regular,
+    OpenSans_500Medium,
+    OpenSans_600SemiBold,
+    OpenSans_700Bold,
+    OpenSans_800ExtraBold,
+    'Open Sans': OpenSans_400Regular,
     'OpenSans-Regular': OpenSans_400Regular,
     'OpenSans-Medium': OpenSans_500Medium,
+    'OpenSans-SemiBold': OpenSans_600SemiBold,
+    'OpenSans-Bold': OpenSans_700Bold,
   });
 
   useEffect(() => {
@@ -77,16 +109,16 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ColorThemeProvider>
-        <ThemeProvider>
+      <ThemeProvider>
+        <ColorThemeProvider>
           <AuthProvider>
             <ToastProvider>
               <ThemedStatusBar />
               <RootNavigator />
             </ToastProvider>
           </AuthProvider>
-        </ThemeProvider>
-      </ColorThemeProvider>
+        </ColorThemeProvider>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

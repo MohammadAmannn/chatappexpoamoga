@@ -17,6 +17,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/providers/theme-provider';
+import { useModeContext } from '@/providers/mode-provider';
+import { useColorTheme } from '@/providers/color-theme-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useChat } from '@/hooks/useChat';
 import {
@@ -35,15 +37,21 @@ import {
   FileUploadProgress,
   TypingIndicator,
   ChatProfileModal,
+  ContactInfoView,
+  AppNavigationDrawer,
+  ComingSoonView,
+  ThemeSettingsDrawer,
+  DEFAULT_DRAWER_ITEMS,
+  colorThemes,
   type ContactItem,
   type GroupItem,
 } from 'amogamobileds-v1';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, LogOut, Sun, Moon, X, UserPlus } from 'lucide-react-native';
+import { ChevronLeft, LogOut, Sun, Moon, X, UserPlus, Menu, Command } from 'lucide-react-native';
 
 export default function MobileChatScreen() {
   const insets = useSafeAreaInsets();
-  const { colors, resolvedMode, toggleMode } = useTheme();
+  const { colors, resolvedMode, mode, setMode } = useTheme();
   const isDark = resolvedMode === 'dark';
   const { user, profile, signOut } = useAuth();
   const toast = useToast();
@@ -76,11 +84,16 @@ export default function MobileChatScreen() {
     sendVoiceMessage,
   } = useChat();
 
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
+  const { colorTheme, setColorTheme, resetColorTheme } = useColorTheme();
+  const [activeMenuId, setActiveMenuId] = useState<string>('chat');
   const [activeTab, setActiveTab] = useState('chats');
   const [sidebarSearch, setSidebarSearch] = useState('');
   const [contacts, setContacts] = useState<ContactItem[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [isDetailViewOpen, setIsDetailViewOpen] = useState(false);
+  const [showContactInfo, setShowContactInfo] = useState(false);
   const [activeActionMsgId, setActiveActionMsgId] = useState<string | null>(null);
   const [actionMenuMsg, setActionMenuMsg] = useState<any | null>(null);
   const [forwardTargetMsg, setForwardTargetMsg] = useState<any | null>(null);
@@ -88,6 +101,30 @@ export default function MobileChatScreen() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [externalReplyMap, setExternalReplyMap] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    setShowContactInfo(false);
+  }, [activeConversationId]);
+
+  const userInitials = useMemo(() => {
+    if (profile?.name) {
+      return profile.name
+        .split(' ')
+        .filter(Boolean)
+        .map((n: string) => n[0])
+        .join('')
+        .substring(0, 2)
+        .toUpperCase();
+    }
+    if (user?.email) {
+      return user.email.substring(0, 2).toUpperCase();
+    }
+    return 'MA';
+  }, [profile?.name, user?.email]);
+
+  const activeDrawerItem = useMemo(() => {
+    return DEFAULT_DRAWER_ITEMS.find((item) => item.id === activeMenuId) || DEFAULT_DRAWER_ITEMS[0];
+  }, [activeMenuId]);
 
   // Fast map of messages indexed by both id and sender_message_id
   const messageMap = useMemo(() => {
@@ -456,31 +493,29 @@ export default function MobileChatScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? safeTopPadding : 10}
       >
-        {/* ──────────────── Main List View (Chats, Contact, Groups, Folder) ──────────────── */}
-        {!isDetailViewOpen ? (
-          <View style={{ flex: 1, paddingBottom: insets.bottom }}>
-            {/* Top User Bar (With Proper Status Bar Padding) */}
-            <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
-              <View style={styles.userRow}>
-                <View style={[styles.avatarCircleSmall, { backgroundColor: isDark ? '#312e81' : '#dbeafe' }]}>
-                  <Text style={[styles.avatarTextSmall, { color: isDark ? '#a5b4fc' : '#2563eb' }]}>
-                    {(profile?.name || user?.email || 'A').charAt(0).toUpperCase()}
+        {activeMenuId === 'chat' ? (
+          /* ──────────────── Main List View (Chats, Contact, Groups, Folder) ──────────────── */
+          !isDetailViewOpen ? (
+            <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+              {/* Top Bar with Logo Drawer Button and Clean Title */}
+              <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
+                <View style={styles.userBarLeft}>
+                  {/* Purple Amoga Logo Button to open navigation drawer */}
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => setIsDrawerOpen(true)}
+                    style={[styles.mobileLogoBadge, { backgroundColor: colors.primary }]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open Navigation Menu"
+                  >
+                    <Command size={18} color="#ffffff" strokeWidth={2.4} />
+                  </TouchableOpacity>
+
+                  <Text style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}>
+                    Chats
                   </Text>
                 </View>
-                <Text style={[styles.topBarTitle, { color: colors.foreground }]} numberOfLines={1}>
-                  {profile?.name || user?.email?.split('@')[0] || 'Chats'}
-                </Text>
               </View>
-
-              <View style={styles.userActionsRow}>
-                <TouchableOpacity onPress={toggleMode} style={styles.topIconBtn}>
-                  {isDark ? <Sun size={18} color={colors.foreground} /> : <Moon size={18} color={colors.foreground} />}
-                </TouchableOpacity>
-                <TouchableOpacity onPress={signOut} style={styles.topIconBtn}>
-                  <LogOut size={18} color="#ef4444" />
-                </TouchableOpacity>
-              </View>
-            </View>
 
             {/* Reusable ChatSidebar Component with Subtabs */}
             <ChatSidebar
@@ -585,26 +620,34 @@ export default function MobileChatScreen() {
         ) : (
           /* ──────────────── Conversation Detail View ──────────────── */
           <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: isKeyboardVisible ? 0 : insets.bottom }}>
-            {/* Header with Back Button */}
-            <View style={[styles.detailHeaderWrap, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
-              <TouchableOpacity
-                onPress={() => setIsDetailViewOpen(false)}
-                style={styles.backBtn}
-              >
-                <ChevronLeft size={24} color={colors.foreground} />
-              </TouchableOpacity>
-              <View style={{ flex: 1 }}>
-                <ChatHeader
-                  title={chatTitle}
-                  subtitle={chatSubtitle}
-                  status={activeConversation?.otherMember?.online ? 'online' : 'offline'}
-                  isGroup={activeConversation?.type === 'group'}
-                  memberCount={activeConversation?.type === 'group' ? (activeConversation.membersCount || activeConversation.members?.length || 2) : undefined}
-                  showDefaultActions={true}
-                  onAvatarClick={() => setIsProfileModalOpen(true)}
-                />
-              </View>
-            </View>
+            {showContactInfo ? (
+              <ContactInfoView
+                conversation={activeConversation}
+                messages={messages}
+                onClose={() => setShowContactInfo(false)}
+              />
+            ) : (
+              <>
+                {/* Header with Back Button */}
+                <View style={[styles.detailHeaderWrap, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
+                  <TouchableOpacity
+                    onPress={() => setIsDetailViewOpen(false)}
+                    style={styles.backBtn}
+                  >
+                    <ChevronLeft size={24} color={colors.foreground} />
+                  </TouchableOpacity>
+                  <View style={{ flex: 1 }}>
+                    <ChatHeader
+                      title={chatTitle}
+                      subtitle={chatSubtitle}
+                      status={activeConversation?.otherMember?.online ? 'online' : 'offline'}
+                      isGroup={activeConversation?.type === 'group'}
+                      memberCount={activeConversation?.type === 'group' ? (activeConversation.membersCount || activeConversation.members?.length || 2) : undefined}
+                      showDefaultActions={true}
+                      onAvatarClick={() => setShowContactInfo(true)}
+                    />
+                  </View>
+                </View>
 
             {/* Receiver Contact Banner: Shown if receiver does not have sender in contacts */}
             {isDirect && otherMember && !isOtherInContacts && (
@@ -1024,9 +1067,75 @@ export default function MobileChatScreen() {
               conversation={activeConversation}
               messages={messages}
             />
+            </>
+          )}
+        </View>
+        )
+      ) : (
+          /* ──────────────── Non-Chat Menu Items (Screenshot 1) ──────────────── */
+          <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: insets.bottom }}>
+            {/* Top Bar with Logo Drawer Button and Title matching Screenshot 1 */}
+            <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
+              <View style={styles.userBarLeft}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setIsDrawerOpen(true)}
+                  style={[styles.mobileLogoBadge, { backgroundColor: colors.primary }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Navigation Menu"
+                >
+                  <Command size={18} color="#ffffff" strokeWidth={2.4} />
+                </TouchableOpacity>
+
+                <Text style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}>
+                  {activeDrawerItem.label}
+                </Text>
+              </View>
+            </View>
+
+            <ComingSoonView
+              title={activeDrawerItem.label}
+              icon={activeDrawerItem.icon}
+              onGoToChat={() => {
+                setActiveMenuId('chat');
+                setIsDetailViewOpen(false);
+              }}
+            />
           </View>
         )}
       </KeyboardAvoidingView>
+
+      {/* Slide-out Mobile Navigation Drawer (Screenshot 2) */}
+      <AppNavigationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        activeId={activeMenuId}
+        onSelect={(id) => {
+          setActiveMenuId(id);
+          setIsDetailViewOpen(false);
+        }}
+        workspaceName="Amoga App"
+        workspaceSubtitle="Workspace"
+        userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
+        userSubtitle="My Account"
+        userInitials={userInitials}
+        onProfilePress={() => setIsProfileModalOpen(true)}
+        onThemePress={() => setIsThemeSettingsOpen(true)}
+        onSignOut={signOut}
+        primaryColor={colors.primary}
+      />
+
+      {/* Tweakcn Theme Settings Drawer */}
+      <ThemeSettingsDrawer
+        isOpen={isThemeSettingsOpen}
+        onClose={() => setIsThemeSettingsOpen(false)}
+        appearanceMode={mode}
+        onModeChange={(m) => setMode(m)}
+        currentColorTheme={colorTheme}
+        onColorThemeChange={setColorTheme}
+        onResetTheme={resetColorTheme}
+        availableThemes={colorThemes}
+      />
     </View>
   );
 }
@@ -1046,10 +1155,30 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
   },
-  userRow: {
+  userBarLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    flex: 1,
+  },
+  mobileLogoBadge: {
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: '#7c3aed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#7c3aed',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  userRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 1,
   },
   topBarTitle: {
     fontSize: 16,
