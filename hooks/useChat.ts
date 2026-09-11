@@ -589,9 +589,12 @@ export function useChat() {
           if (!uri.startsWith('file://') && !uri.startsWith('content://') && !uri.startsWith('data:')) {
             readableUri = `file://${uri}`;
           }
-          base64Data = await FileSystem.readAsStringAsync(readableUri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
+          const FS = getFileSystemModule();
+          if (FS && FS.readAsStringAsync) {
+            base64Data = await FS.readAsStringAsync(readableUri, {
+              encoding: FS.EncodingType?.Base64 || 'base64',
+            });
+          }
         } catch (readErr) {
           console.warn('Voice base64 read notice:', readErr);
         }

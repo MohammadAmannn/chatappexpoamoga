@@ -41,7 +41,10 @@ import {
   AppNavigationDrawer,
   ComingSoonView,
   ThemeSettingsDrawer,
+  PreferencesDrawer,
+  PreferencesView,
   DEFAULT_DRAWER_ITEMS,
+  app_menu_json,
   colorThemes,
   type ContactItem,
   type GroupItem,
@@ -86,6 +89,7 @@ export default function MobileChatScreen() {
 
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const { colorTheme, setColorTheme, resetColorTheme } = useColorTheme();
   const [activeMenuId, setActiveMenuId] = useState<string>('chat');
   const [activeTab, setActiveTab] = useState('chats');
@@ -123,7 +127,10 @@ export default function MobileChatScreen() {
   }, [profile?.name, user?.email]);
 
   const activeDrawerItem = useMemo(() => {
-    return DEFAULT_DRAWER_ITEMS.find((item) => item.id === activeMenuId) || DEFAULT_DRAWER_ITEMS[0];
+    return (
+      DEFAULT_DRAWER_ITEMS.find((item) => item.id.toLowerCase() === activeMenuId.toLowerCase()) ||
+      DEFAULT_DRAWER_ITEMS[0]
+    );
   }, [activeMenuId]);
 
   // Fast map of messages indexed by both id and sender_message_id
@@ -1119,8 +1126,10 @@ export default function MobileChatScreen() {
         userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
         userSubtitle="My Account"
         userInitials={userInitials}
-        onProfilePress={() => setIsProfileModalOpen(true)}
+        onProfilePress={() => toast.info('My Profile is coming soon')}
         onThemePress={() => setIsThemeSettingsOpen(true)}
+        onPreferencesPress={() => setIsPreferencesOpen(true)}
+        onPreferencePress={() => setIsPreferencesOpen(true)}
         onSignOut={signOut}
         primaryColor={colors.primary}
       />
@@ -1136,6 +1145,21 @@ export default function MobileChatScreen() {
         onResetTheme={resetColorTheme}
         availableThemes={colorThemes}
       />
+
+      {/* Application Preferences Settings Modal */}
+      <Modal
+        visible={isPreferencesOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsPreferencesOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: safeTopPadding }}>
+          <PreferencesView
+            onClose={() => setIsPreferencesOpen(false)}
+            primaryColor={colors.primary}
+          />
+        </View>
+      </Modal>
     </View>
   );
 }

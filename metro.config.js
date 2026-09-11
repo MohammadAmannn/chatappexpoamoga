@@ -3,23 +3,20 @@ const path = require('path');
 const fs = require('fs');
 
 const projectRoot = __dirname;
-// Look inside ./packages/amogamobileds-v1 first (self-contained inside the repo for Vercel/CI),
-// or fallback to sibling ../amogamobileds-v1 for local monorepos
-const localPackagesDs = path.resolve(projectRoot, 'packages', 'amogamobileds-v1');
+// Look for sibling ../amogamobileds-v1 for local monorepos / workspaces,
+// or fallback to node_modules/amogamobileds-v1 when installed from npm
 const siblingDs = path.resolve(projectRoot, '..', 'amogamobileds-v1');
-const centralRepoRoot = fs.existsSync(localPackagesDs)
-  ? localPackagesDs
-  : (fs.existsSync(siblingDs) ? siblingDs : null);
+const centralRepoRoot = fs.existsSync(siblingDs) ? siblingDs : null;
 
 const config = getDefaultConfig(projectRoot);
 
 const hasCentralRepo = !!centralRepoRoot;
 const dsRoot = centralRepoRoot || path.resolve(projectRoot, 'node_modules', 'amogamobileds-v1');
 
-// 1. Watch central design system repository for live updates (if present)
+// 1. Watch central design system repository for local development (if present)
 config.watchFolders = hasCentralRepo ? [centralRepoRoot] : [];
 
-// 2. Resolve modules exclusively from project root to prevent duplicate react/lucide/expo instances
+// 2. Resolve modules exclusively from project node_modules
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
 ];
@@ -88,6 +85,23 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     const directIndex = path.resolve(dsRoot, 'index.ts');
     if (fs.existsSync(directIndex)) {
       return { type: 'sourceFile', filePath: directIndex };
+    }
+  }
+
+  // Handle semver subpath imports for react-native-reanimated
+  if (moduleName.startsWith('semver/') || moduleName === 'semver') {
+    const semverV7 = path.resolve(projectRoot, 'node_modules', 'react-native-reanimated', 'node_modules', 'semver');
+    const rootSemverV7 = path.resolve(projectRoot, '..', 'node_modules', 'react-native-reanimated', 'node_modules', 'semver');
+    const targetSemver = fs.existsSync(semverV7) ? semverV7 : (fs.existsSync(rootSemverV7) ? rootSemverV7 : null);
+    if (targetSemver) {
+      if (moduleName === 'semver') {
+        return { type: 'sourceFile', filePath: path.resolve(targetSemver, 'index.js') };
+      }
+      const subpath = moduleName.replace(/^semver\//, '');
+      const candidate = path.resolve(targetSemver, subpath + (subpath.endsWith('.js') ? '' : '.js'));
+      if (fs.existsSync(candidate)) {
+        return { type: 'sourceFile', filePath: candidate };
+      }
     }
   }
 

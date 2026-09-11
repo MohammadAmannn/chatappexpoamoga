@@ -308,18 +308,29 @@ export async function uploadChatAttachment(
     if (Platform.OS !== 'web' && fileUri && (fileUri.startsWith('file:') || fileUri.startsWith('content:'))) {
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
       const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+      const FS: any = (() => {
+        try {
+          return require('expo-file-system/legacy');
+        } catch {
+          try {
+            return require('expo-file-system');
+          } catch {
+            return null;
+          }
+        }
+      })();
 
-      if (supabaseUrl && supabaseKey) {
+      if (supabaseUrl && supabaseKey && FS && FS.uploadAsync) {
         try {
           const uploadEndpoint = `${supabaseUrl}/storage/v1/object/chat-files/${filePath}`;
-          const uploadRes = await FileSystem.uploadAsync(uploadEndpoint, fileUri, {
+          const uploadRes = await FS.uploadAsync(uploadEndpoint, fileUri, {
             headers: {
               Authorization: `Bearer ${supabaseKey}`,
               apikey: supabaseKey,
               'Content-Type': mimeType || 'application/octet-stream',
             },
             httpMethod: 'POST',
-            uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+            uploadType: FS.FileSystemUploadType?.BINARY_CONTENT ?? 0,
           });
 
           if (uploadRes.status >= 200 && uploadRes.status < 300) {
@@ -339,10 +350,10 @@ export async function uploadChatAttachment(
       }
 
       // If uploadAsync wasn't successful, try reading file bytes into base64Data
-      if (!base64Data) {
+      if (!base64Data && FS && FS.readAsStringAsync) {
         try {
-          base64Data = await FileSystem.readAsStringAsync(fileUri, {
-            encoding: FileSystem.EncodingType.Base64,
+          base64Data = await FS.readAsStringAsync(fileUri, {
+            encoding: FS.EncodingType?.Base64 || 'base64',
           });
         } catch (fsReadErr) {
           console.warn('[upload] FileSystem.readAsStringAsync error:', fsReadErr);

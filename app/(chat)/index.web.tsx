@@ -34,7 +34,10 @@ import {
   AppNavigationDrawer,
   ComingSoonView,
   ThemeSettingsDrawer,
+  PreferencesDrawer,
+  PreferencesView,
   DEFAULT_NAV_ITEMS,
+  app_menu_json,
   type ContactItem,
   type GroupItem,
 } from 'amogamobileds-v1';
@@ -76,6 +79,7 @@ export default function ChatWebScreen() {
   const isMobileOrTablet = width < 768;
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
+  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const modeContext = useModeContext();
   const { colorTheme, setColorTheme, resetColorTheme, colorThemes } = useColorTheme();
 
@@ -100,9 +104,11 @@ export default function ChatWebScreen() {
     setShowContactInfo(false);
   }, [activeConversationId]);
 
+  const profileName = profile?.name;
+  const userEmail = user?.email;
   const userInitials = useMemo(() => {
-    if (profile?.name) {
-      return profile.name
+    if (profileName) {
+      return profileName
         .split(' ')
         .filter(Boolean)
         .map((n: string) => n[0])
@@ -110,14 +116,17 @@ export default function ChatWebScreen() {
         .substring(0, 2)
         .toUpperCase();
     }
-    if (user?.email) {
-      return user.email.substring(0, 2).toUpperCase();
+    if (userEmail) {
+      return userEmail.substring(0, 2).toUpperCase();
     }
     return 'MA';
-  }, [profile?.name, user?.email]);
+  }, [profileName, userEmail]);
 
   const activeNavItem = useMemo(() => {
-    return DEFAULT_NAV_ITEMS.find((item) => item.id === mainNavId) || DEFAULT_NAV_ITEMS[0];
+    return (
+      DEFAULT_NAV_ITEMS.find((item) => item.id.toLowerCase() === mainNavId.toLowerCase()) ||
+      DEFAULT_NAV_ITEMS[0]
+    );
   }, [mainNavId]);
 
   // Fast map of messages indexed by both id and sender_message_id
@@ -449,8 +458,8 @@ export default function ChatWebScreen() {
     }
   }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
 
-  const showSidebar = !isMobileOrTablet || !activeConversationId;
-  const showDetailPane = !isMobileOrTablet || !!activeConversationId;
+  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen);
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
@@ -462,8 +471,10 @@ export default function ChatWebScreen() {
           userInitials={userInitials}
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="Account"
-          onProfilePress={() => setIsProfileModalOpen(true)}
+          onProfilePress={() => toast.info('My Profile is coming soon')}
           onThemePress={() => setIsThemeSettingsOpen(true)}
+          onPreferencesPress={() => setIsPreferencesOpen(true)}
+          onPreferencePress={() => setIsPreferencesOpen(true)}
           onSignOut={signOut}
           onLogoPress={() => setMainNavId('chat')}
           primaryColor={colors.primary}
@@ -485,7 +496,11 @@ export default function ChatWebScreen() {
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="My Account"
           userInitials={userInitials}
-          onProfilePress={() => setIsProfileModalOpen(true)}
+          onProfilePress={() => toast.info('My Profile is coming soon')}
+          onThemePress={() => setIsThemeSettingsOpen(true)}
+          onPreferencesPress={() => setIsPreferencesOpen(true)}
+          onPreferencePress={() => setIsPreferencesOpen(true)}
+          onSignOut={signOut}
           primaryColor={colors.primary}
         />
       )}
@@ -638,35 +653,15 @@ export default function ChatWebScreen() {
             </View>
           )}
 
-          {/* ──────────────── Right Detail Pane: Active Chat ──────────────── */}
+          {/* ──────────────── Right Detail Pane: Active Chat / Preferences ──────────────── */}
           {showDetailPane && (
             <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
-              {/* On mobile: show top back button to return to chat list */}
-              {isMobileOrTablet && activeConversationId && (
-                <View
-                  style={[
-                    styles.mobileBackHeader,
-                    {
-                      borderBottomColor: colors.border,
-                      backgroundColor: colors.background,
-                    },
-                  ]}
-                >
-                  <TouchableOpacity
-                    onPress={() => setActiveConversationId(null)}
-                    style={styles.mobileBackBtn}
-                    accessibilityRole="button"
-                    accessibilityLabel="Back to chat list"
-                  >
-                    <ChevronLeft size={22} color={colors.foreground} />
-                    <Text style={[styles.mobileBackText, { color: colors.foreground }]}>
-                      Chats
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {activeConversationId ? (
+              {isPreferencesOpen ? (
+                <PreferencesView
+                  onClose={() => setIsPreferencesOpen(false)}
+                  primaryColor={colors.primary}
+                />
+              ) : activeConversationId ? (
                 showContactInfo ? (
                   <ContactInfoView
                     conversation={activeConversation}
@@ -684,6 +679,7 @@ export default function ChatWebScreen() {
                       showDefaultActions={true}
                       onAvatarClick={() => setShowContactInfo(true)}
                       onDelete={signOut}
+                      onClose={isMobileOrTablet ? () => setActiveConversationId(null) : undefined}
                     />
 
                   {/* Receiver Contact Banner: Shown if receiver does not have sender in contacts */}
@@ -838,26 +834,10 @@ export default function ChatWebScreen() {
                             {isSelected && (
                               <View style={styles.iconBarWrapper}>
                                 <ChatIconBar
-                                  onReaction={(emoji) => {
-                                    handleSendReaction(msg.id, emoji);
+                                  onThumbUp={() => {
                                     setActiveActionMsgId(null);
                                   }}
-                                  onReply={() => {
-                                    setReplyMessage({
-                                      id: msg.id,
-                                      senderName: isOwn ? 'You' : senderName,
-                                      content: msg.message || msg.file_name || 'Attachment',
-                                    });
-                                    setActiveActionMsgId(null);
-                                  }}
-                                  onForward={() => {
-                                    setForwardTargetMsg({
-                                      id: msg.id,
-                                      message: msg.message,
-                                      file_url: msg.file_url,
-                                      file_name: msg.file_name,
-                                      message_type: msg.message_type,
-                                    });
+                                  onThumbDown={() => {
                                     setActiveActionMsgId(null);
                                   }}
                                   onCopy={() => {
@@ -865,6 +845,7 @@ export default function ChatWebScreen() {
                                       navigator.clipboard.writeText(msg.message || msg.file_url || '');
                                     }
                                     toast.success('Copied to clipboard');
+                                    setActiveActionMsgId(null);
                                   }}
                                   onShare={() => {
                                     if (typeof navigator !== 'undefined' && navigator.clipboard) {
@@ -1103,10 +1084,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     fontFamily: 'Open Sans',
-  },
-  comingSoonWrap: {
-    flex: 1,
-    height: '100%',
   },
   userTopBar: {
     height: 52,
