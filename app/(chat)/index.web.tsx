@@ -459,8 +459,8 @@ export default function ChatWebScreen() {
     }
   }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
 
-  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen && !isThemeSettingsOpen);
-  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen || isThemeSettingsOpen;
+  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen);
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
@@ -654,26 +654,13 @@ export default function ChatWebScreen() {
             </View>
           )}
 
-          {/* ──────────────── Right Detail Pane: Active Chat / Preferences / Theme ──────────────── */}
+          {/* ──────────────── Right Detail Pane: Active Chat / Preferences ──────────────── */}
           {showDetailPane && (
             <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
               {isPreferencesOpen ? (
                 <PreferencesView
                   onClose={() => setIsPreferencesOpen(false)}
                   primaryColor={colors.primary}
-                />
-              ) : isThemeSettingsOpen && !isMobileOrTablet ? (
-                <ThemeSettingsView
-                  onClose={() => setIsThemeSettingsOpen(false)}
-                  appearanceMode={modeContext?.mode || 'system'}
-                  onModeChange={(m) => modeContext?.setMode(m)}
-                  currentColorTheme={colorTheme}
-                  onColorThemeChange={setColorTheme}
-                  onResetTheme={() => {
-                    modeContext?.setMode('light');
-                    resetColorTheme();
-                  }}
-                  availableThemes={colorThemes}
                 />
               ) : activeConversationId ? (
                 showContactInfo ? (
@@ -1033,22 +1020,20 @@ export default function ChatWebScreen() {
         messages={messages}
       />
 
-      {/* Tweakcn Theme Settings Drawer (Mobile Web) */}
-      {isMobileOrTablet && (
-        <ThemeSettingsDrawer
-          isOpen={isThemeSettingsOpen}
-          onClose={() => setIsThemeSettingsOpen(false)}
-          appearanceMode={modeContext?.mode || 'system'}
-          onModeChange={(m) => modeContext?.setMode(m)}
-          currentColorTheme={colorTheme}
-          onColorThemeChange={setColorTheme}
-          onResetTheme={() => {
-            modeContext?.setMode('light');
-            resetColorTheme();
-          }}
-          availableThemes={colorThemes}
-        />
-      )}
+      {/* Responsive Theme Settings Drawer (Slide-out Right Drawer for Desktop Web & Mobile) */}
+      <ThemeSettingsDrawer
+        isOpen={isThemeSettingsOpen}
+        onClose={() => setIsThemeSettingsOpen(false)}
+        appearanceMode={modeContext?.mode || 'system'}
+        onModeChange={(m) => modeContext?.setMode(m)}
+        currentColorTheme={colorTheme}
+        onColorThemeChange={setColorTheme}
+        onResetTheme={() => {
+          modeContext?.setMode('light');
+          resetColorTheme();
+        }}
+        availableThemes={colorThemes}
+      />
     </View>
   );
 }
