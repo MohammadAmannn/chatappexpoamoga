@@ -34,6 +34,7 @@ import {
   AppNavigationDrawer,
   ComingSoonView,
   ThemeSettingsDrawer,
+  ThemeSettingsView,
   PreferencesDrawer,
   PreferencesView,
   DEFAULT_NAV_ITEMS,
@@ -458,8 +459,8 @@ export default function ChatWebScreen() {
     }
   }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
 
-  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen);
-  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen;
+  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen && !isThemeSettingsOpen);
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen || isThemeSettingsOpen;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
@@ -471,7 +472,7 @@ export default function ChatWebScreen() {
           userInitials={userInitials}
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="Account"
-          onProfilePress={() => toast.info('My Profile is coming soon')}
+          onProfilePress={() => setIsProfileModalOpen(true)}
           onThemePress={() => setIsThemeSettingsOpen(true)}
           onPreferencesPress={() => setIsPreferencesOpen(true)}
           onPreferencePress={() => setIsPreferencesOpen(true)}
@@ -496,7 +497,7 @@ export default function ChatWebScreen() {
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="My Account"
           userInitials={userInitials}
-          onProfilePress={() => toast.info('My Profile is coming soon')}
+          onProfilePress={() => setIsProfileModalOpen(true)}
           onThemePress={() => setIsThemeSettingsOpen(true)}
           onPreferencesPress={() => setIsPreferencesOpen(true)}
           onPreferencePress={() => setIsPreferencesOpen(true)}
@@ -653,13 +654,26 @@ export default function ChatWebScreen() {
             </View>
           )}
 
-          {/* ──────────────── Right Detail Pane: Active Chat / Preferences ──────────────── */}
+          {/* ──────────────── Right Detail Pane: Active Chat / Preferences / Theme ──────────────── */}
           {showDetailPane && (
             <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
               {isPreferencesOpen ? (
                 <PreferencesView
                   onClose={() => setIsPreferencesOpen(false)}
                   primaryColor={colors.primary}
+                />
+              ) : isThemeSettingsOpen && !isMobileOrTablet ? (
+                <ThemeSettingsView
+                  onClose={() => setIsThemeSettingsOpen(false)}
+                  appearanceMode={modeContext?.mode || 'system'}
+                  onModeChange={(m) => modeContext?.setMode(m)}
+                  currentColorTheme={colorTheme}
+                  onColorThemeChange={setColorTheme}
+                  onResetTheme={() => {
+                    modeContext?.setMode('light');
+                    resetColorTheme();
+                  }}
+                  availableThemes={colorThemes}
                 />
               ) : activeConversationId ? (
                 showContactInfo ? (
@@ -1019,20 +1033,22 @@ export default function ChatWebScreen() {
         messages={messages}
       />
 
-      {/* Tweakcn Theme Settings Drawer (Web Only) */}
-      <ThemeSettingsDrawer
-        isOpen={isThemeSettingsOpen}
-        onClose={() => setIsThemeSettingsOpen(false)}
-        appearanceMode={modeContext?.mode || 'system'}
-        onModeChange={(m) => modeContext?.setMode(m)}
-        currentColorTheme={colorTheme}
-        onColorThemeChange={setColorTheme}
-        onResetTheme={() => {
-          modeContext?.setMode('light');
-          resetColorTheme();
-        }}
-        availableThemes={colorThemes}
-      />
+      {/* Tweakcn Theme Settings Drawer (Mobile Web) */}
+      {isMobileOrTablet && (
+        <ThemeSettingsDrawer
+          isOpen={isThemeSettingsOpen}
+          onClose={() => setIsThemeSettingsOpen(false)}
+          appearanceMode={modeContext?.mode || 'system'}
+          onModeChange={(m) => modeContext?.setMode(m)}
+          currentColorTheme={colorTheme}
+          onColorThemeChange={setColorTheme}
+          onResetTheme={() => {
+            modeContext?.setMode('light');
+            resetColorTheme();
+          }}
+          availableThemes={colorThemes}
+        />
+      )}
     </View>
   );
 }
@@ -1132,9 +1148,11 @@ const styles = StyleSheet.create({
   rightViewport: {
     flex: 1,
     height: '100%',
+    maxHeight: '100%',
     display: 'flex' as any,
     flexDirection: 'column',
     borderLeftWidth: 1,
+    overflow: 'hidden',
   },
   comingSoonWrap: {
     flex: 1,

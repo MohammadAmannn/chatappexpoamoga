@@ -1126,7 +1126,7 @@ export default function MobileChatScreen() {
         userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
         userSubtitle="My Account"
         userInitials={userInitials}
-        onProfilePress={() => toast.info('My Profile is coming soon')}
+        onProfilePress={() => setIsProfileModalOpen(true)}
         onThemePress={() => setIsThemeSettingsOpen(true)}
         onPreferencesPress={() => setIsPreferencesOpen(true)}
         onPreferencePress={() => setIsPreferencesOpen(true)}
