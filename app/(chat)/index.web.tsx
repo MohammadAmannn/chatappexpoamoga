@@ -459,8 +459,8 @@ export default function ChatWebScreen() {
     }
   }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
 
-  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen);
-  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen;
+  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen && !isThemeSettingsOpen);
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen || isThemeSettingsOpen;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
@@ -654,13 +654,26 @@ export default function ChatWebScreen() {
             </View>
           )}
 
-          {/* ──────────────── Right Detail Pane: Active Chat / Preferences ──────────────── */}
+          {/* ──────────────── Right Detail Pane: Active Chat / Preferences / Theme Settings ──────────────── */}
           {showDetailPane && (
             <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
               {isPreferencesOpen ? (
                 <PreferencesView
                   onClose={() => setIsPreferencesOpen(false)}
                   primaryColor={colors.primary}
+                />
+              ) : isThemeSettingsOpen ? (
+                <ThemeSettingsView
+                  onClose={() => setIsThemeSettingsOpen(false)}
+                  appearanceMode={modeContext?.mode || 'system'}
+                  onModeChange={(m) => modeContext?.setMode(m)}
+                  currentColorTheme={colorTheme}
+                  onColorThemeChange={setColorTheme}
+                  onResetTheme={() => {
+                    modeContext?.setMode('light');
+                    resetColorTheme();
+                  }}
+                  availableThemes={colorThemes}
                 />
               ) : activeConversationId ? (
                 showContactInfo ? (
@@ -1018,21 +1031,6 @@ export default function ChatWebScreen() {
         onClose={() => setIsProfileModalOpen(false)}
         conversation={activeConversation}
         messages={messages}
-      />
-
-      {/* Responsive Theme Settings Drawer (Slide-out Right Drawer for Desktop Web & Mobile) */}
-      <ThemeSettingsDrawer
-        isOpen={isThemeSettingsOpen}
-        onClose={() => setIsThemeSettingsOpen(false)}
-        appearanceMode={modeContext?.mode || 'system'}
-        onModeChange={(m) => modeContext?.setMode(m)}
-        currentColorTheme={colorTheme}
-        onColorThemeChange={setColorTheme}
-        onResetTheme={() => {
-          modeContext?.setMode('light');
-          resetColorTheme();
-        }}
-        availableThemes={colorThemes}
       />
     </View>
   );
