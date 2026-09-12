@@ -43,6 +43,8 @@ import {
   ThemeSettingsDrawer,
   PreferencesDrawer,
   PreferencesView,
+  FullPageMap,
+  DEFAULT_MAP_MARKERS,
   DEFAULT_DRAWER_ITEMS,
   app_menu_json,
   colorThemes,
@@ -50,7 +52,7 @@ import {
   type GroupItem,
 } from 'amogamobileds-v1';
 import { supabase } from '@/lib/supabase';
-import { ChevronLeft, LogOut, Sun, Moon, X, UserPlus, Menu, Command } from 'lucide-react-native';
+import { ChevronLeft, LogOut, Sun, Moon, X, UserPlus, Menu, Command, MapPin } from 'lucide-react-native';
 
 export default function MobileChatScreen() {
   const insets = useSafeAreaInsets();
@@ -58,6 +60,7 @@ export default function MobileChatScreen() {
   const isDark = resolvedMode === 'dark';
   const { user, profile, signOut } = useAuth();
   const toast = useToast();
+  const [isMapModalOpen, setIsMapModalOpen] = useState(false);
 
   const {
     conversations,
@@ -1127,12 +1130,95 @@ export default function MobileChatScreen() {
         userSubtitle="My Account"
         userInitials={userInitials}
         onProfilePress={() => setIsProfileModalOpen(true)}
+        onMapPress={() => {
+          setIsDrawerOpen(false);
+          setIsMapModalOpen(true);
+        }}
         onThemePress={() => setIsThemeSettingsOpen(true)}
         onPreferencesPress={() => setIsPreferencesOpen(true)}
         onPreferencePress={() => setIsPreferencesOpen(true)}
         onSignOut={signOut}
         primaryColor={colors.primary}
       />
+
+      {/* Full View Map Modal for Mobile APK */}
+      <Modal
+        visible={isMapModalOpen}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => setIsMapModalOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingTop: insets.top }}>
+          {/* Top Header Bar with Title and Close Cross button on right */}
+          <View
+            style={{
+              height: 52,
+              paddingHorizontal: 16,
+              borderBottomWidth: 1,
+              borderBottomColor: colors.border,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: colors.card || colors.background,
+              zIndex: 10,
+            }}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: isDark ? '#1e3a8a' : '#dbeafe',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MapPin size={17} color="#2563eb" strokeWidth={2.2} />
+              </View>
+              <Text
+                style={{
+                  fontSize: 16,
+                  fontWeight: '700',
+                  color: colors.foreground,
+                  fontFamily: 'Open Sans',
+                }}
+              >
+                My Map
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => setIsMapModalOpen(false)}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: isDark ? '#27272a' : '#f1f5f9',
+                borderWidth: 1,
+                borderColor: colors.border,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Close My Map"
+            >
+              <X size={16} color={colors.mutedForeground} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Full-Length Map */}
+          <View style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+            <FullPageMap
+              markers={DEFAULT_MAP_MARKERS}
+              defaultCenter={[23.2599, 77.4126]}
+              defaultZoom={4}
+              height="100%"
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Tweakcn Theme Settings Drawer */}
       <ThemeSettingsDrawer
