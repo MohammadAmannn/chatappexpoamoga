@@ -36,6 +36,7 @@ import {
   ThemeSettingsDrawer,
   PreferencesDrawer,
   FullPageMap,
+  CalendarAppView,
   DEFAULT_MAP_MARKERS,
   DEFAULT_NAV_ITEMS,
   app_menu_json,
@@ -134,6 +135,10 @@ export default function ChatWebScreen() {
     return {
       id: 'my-profile',
       title: name,
+      name: name,
+      type: 'direct' as const,
+      image: null,
+      created_by: user?.id || null,
       otherMember: {
         id: user?.id || 'me',
         name: name,
@@ -1158,6 +1163,141 @@ export default function ChatWebScreen() {
             </View>
           )}
         </>
+      ) : mainNavId === 'calendar' ? (
+        /* ──────────────── Calendar & Tasks App View ──────────────── */
+        <View style={{ flex: 1, height: '100%', width: '100%', display: 'flex' as any, flexDirection: 'column' }}>
+          {isMobileOrTablet && (
+            <View
+              style={[
+                styles.userTopBar,
+                { borderBottomColor: colors.border },
+              ]}
+            >
+              <View style={styles.userRow}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() => setIsDrawerOpen(true)}
+                  style={[
+                    styles.mobileLogoBadge,
+                    { backgroundColor: colors.primary, shadowColor: colors.primary },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open Navigation Menu"
+                >
+                  <Command size={18} color="#ffffff" strokeWidth={2.4} />
+                </TouchableOpacity>
+                <Text
+                  style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}
+                >
+                  Calendar & Tasks
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <CalendarAppView
+            initialTab="today"
+            onOpenDrawer={() => setIsDrawerOpen(true)}
+            rightOverlayView={
+              isPreferencesOpen ? (
+                <PreferencesView
+                  onClose={() => setIsPreferencesOpen(false)}
+                  primaryColor={colors.primary}
+                />
+              ) : isThemeSettingsOpen ? (
+                <ThemeSettingsView
+                  onClose={() => setIsThemeSettingsOpen(false)}
+                  appearanceMode={modeContext?.mode || 'system'}
+                  onModeChange={(m) => modeContext?.setMode(m)}
+                  currentColorTheme={colorTheme}
+                  onColorThemeChange={setColorTheme}
+                  onResetTheme={() => {
+                    modeContext?.setMode('light');
+                    resetColorTheme();
+                  }}
+                  availableThemes={colorThemes}
+                />
+              ) : isMyMapOpen ? (
+                <View style={{ flex: 1, width: '100%', height: '100%', backgroundColor: colors.background, display: 'flex', flexDirection: 'column' }}>
+                  {/* Top Header with title and cross on right */}
+                  <View
+                    style={{
+                      height: 56,
+                      paddingHorizontal: 16,
+                      borderBottomWidth: 1,
+                      borderBottomColor: colors.border,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      backgroundColor: colors.card || colors.background,
+                      zIndex: 10,
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          backgroundColor: isDark ? '#1e3a8a' : '#dbeafe',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <MapPin size={17} color="#2563eb" strokeWidth={2.2} />
+                      </View>
+                      <Text
+                        style={{
+                          fontSize: 16,
+                          fontWeight: '700',
+                          color: colors.foreground,
+                          fontFamily: 'Open Sans',
+                        }}
+                      >
+                        My Map
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      onPress={() => setIsMyMapOpen(false)}
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 17,
+                        backgroundColor: isDark ? '#27272a' : '#f1f5f9',
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Close My Map"
+                    >
+                      <X size={16} color={colors.mutedForeground} strokeWidth={2} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Full-Length Map */}
+                  <View style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
+                    <FullPageMap
+                      markers={DEFAULT_MAP_MARKERS}
+                      defaultCenter={[23.2599, 77.4126]}
+                      defaultZoom={4}
+                      height="100%"
+                    />
+                  </View>
+                </View>
+              ) : isMyProfileOpen ? (
+                <ContactInfoView
+                  conversation={myProfileConversation}
+                  messages={messages}
+                  onClose={() => setIsMyProfileOpen(false)}
+                />
+              ) : undefined
+            }
+          />
+        </View>
       ) : (
         /* ──────────────── Coming Soon View for Other Menu Items ──────────────── */
         <View style={[styles.comingSoonWrap, { backgroundColor: colors.background }]}>

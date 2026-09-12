@@ -44,6 +44,7 @@ import {
   PreferencesDrawer,
   PreferencesView,
   FullPageMap,
+  CalendarAppView,
   DEFAULT_MAP_MARKERS,
   DEFAULT_DRAWER_ITEMS,
   app_menu_json,
@@ -1081,38 +1082,62 @@ export default function MobileChatScreen() {
           )}
         </View>
         )
-      ) : (
-          /* ──────────────── Non-Chat Menu Items (Screenshot 1) ──────────────── */
-          <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: insets.bottom }}>
-            {/* Top Bar with Logo Drawer Button and Title matching Screenshot 1 */}
-            <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
-              <View style={styles.userBarLeft}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => setIsDrawerOpen(true)}
-                  style={[styles.mobileLogoBadge, { backgroundColor: colors.primary }]}
-                  accessibilityRole="button"
-                  accessibilityLabel="Open Navigation Menu"
-                >
-                  <Command size={18} color="#ffffff" strokeWidth={2.4} />
-                </TouchableOpacity>
+      ) : activeMenuId === 'calendar' ? (
+        /* ──────────────── Calendar & Tasks View ──────────────── */
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: insets.bottom }}>
+          {/* Top Bar with Logo Drawer Button and Clean Title */}
+          <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
+            <View style={styles.userBarLeft}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setIsDrawerOpen(true)}
+                style={[styles.mobileLogoBadge, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel="Open Navigation Menu"
+              >
+                <Command size={18} color="#ffffff" strokeWidth={2.4} />
+              </TouchableOpacity>
 
-                <Text style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}>
-                  {activeDrawerItem.label}
-                </Text>
-              </View>
+              <Text style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}>
+                Calendar & Tasks
+              </Text>
             </View>
-
-            <ComingSoonView
-              title={activeDrawerItem.label}
-              icon={activeDrawerItem.icon}
-              onGoToChat={() => {
-                setActiveMenuId('chat');
-                setIsDetailViewOpen(false);
-              }}
-            />
           </View>
-        )}
+
+          <CalendarAppView initialTab="today" onOpenDrawer={() => setIsDrawerOpen(true)} />
+        </View>
+      ) : (
+        /* ──────────────── Non-Chat Menu Items (Screenshot 1) ──────────────── */
+        <View style={{ flex: 1, backgroundColor: colors.background, paddingBottom: insets.bottom }}>
+          {/* Top Bar with Logo Drawer Button and Title matching Screenshot 1 */}
+          <View style={[styles.userTopBar, { borderBottomColor: isDark ? colors.border : '#f1f5f9' }]}>
+            <View style={styles.userBarLeft}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setIsDrawerOpen(true)}
+                style={[styles.mobileLogoBadge, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+                accessibilityLabel="Open Navigation Menu"
+              >
+                <Command size={18} color="#ffffff" strokeWidth={2.4} />
+              </TouchableOpacity>
+
+              <Text style={[styles.topBarTitle, { color: colors.foreground, fontSize: 16, fontWeight: '700' }]}>
+                {activeDrawerItem.label}
+              </Text>
+            </View>
+          </View>
+
+          <ComingSoonView
+            title={activeDrawerItem.label}
+            icon={activeDrawerItem.icon}
+            onGoToChat={() => {
+              setActiveMenuId('chat');
+              setIsDetailViewOpen(false);
+            }}
+          />
+        </View>
+      )}
       </KeyboardAvoidingView>
 
       {/* Slide-out Mobile Navigation Drawer (Screenshot 2) */}
