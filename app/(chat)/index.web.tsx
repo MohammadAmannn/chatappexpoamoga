@@ -34,14 +34,15 @@ import {
   AppNavigationDrawer,
   ComingSoonView,
   ThemeSettingsDrawer,
-  ThemeSettingsView,
   PreferencesDrawer,
-  PreferencesView,
   DEFAULT_NAV_ITEMS,
   app_menu_json,
   type ContactItem,
   type GroupItem,
 } from 'amogamobileds-v1';
+// Local component copies to avoid production bundle resolution issues on Vercel
+import { ThemeSettingsView } from '@/components/theme-settings-view';
+import { PreferencesView } from '@/components/preferences-view';
 import { supabase } from '@/lib/supabase';
 import { UserPlus, Palette, LogOut, Sparkles, Command, ChevronLeft, Menu } from 'lucide-react-native';
 
@@ -81,6 +82,7 @@ export default function ChatWebScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isThemeSettingsOpen, setIsThemeSettingsOpen] = useState(false);
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
+  const [isMyProfileOpen, setIsMyProfileOpen] = useState(false);
   const modeContext = useModeContext();
   const { colorTheme, setColorTheme, resetColorTheme, colorThemes } = useColorTheme();
 
@@ -122,6 +124,24 @@ export default function ChatWebScreen() {
     }
     return 'MA';
   }, [profileName, userEmail]);
+
+  const myProfileConversation = useMemo(() => {
+    const name = profile?.name || user?.user_metadata?.full_name || (user?.email ? user.email.split('@')[0] : 'Aman');
+    const email = user?.email || profile?.email || 'itsaman00786@gmail.com';
+    return {
+      id: 'my-profile',
+      title: name,
+      otherMember: {
+        id: user?.id || 'me',
+        name: name,
+        email: email,
+        online: true,
+      },
+      is_group: false,
+      created_at: '',
+      updated_at: '',
+    };
+  }, [profile, user]);
 
   const activeNavItem = useMemo(() => {
     return (
@@ -369,6 +389,9 @@ export default function ChatWebScreen() {
   };
 
   const handleContactChatClick = async (c: ContactItem) => {
+    setIsMyProfileOpen(false);
+    setIsThemeSettingsOpen(false);
+    setIsPreferencesOpen(false);
     if (c.contactUserId) {
       await startDirectChat(c.contactUserId);
       setActiveTab('chats');
@@ -381,6 +404,9 @@ export default function ChatWebScreen() {
     memberIds?: string[];
   }) => {
     if (!user || !newGroup.name.trim()) return;
+    setIsMyProfileOpen(false);
+    setIsThemeSettingsOpen(false);
+    setIsPreferencesOpen(false);
     const memberIds = newGroup.memberIds || [];
     await startGroupChat(newGroup.name.trim(), memberIds);
     toast.success(`Group "${newGroup.name}" created`);
@@ -459,8 +485,8 @@ export default function ChatWebScreen() {
     }
   }, [conversations, activeConversationId, setActiveConversationId, isMobileOrTablet]);
 
-  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen && !isThemeSettingsOpen);
-  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen || isThemeSettingsOpen;
+  const showSidebar = !isMobileOrTablet || (!activeConversationId && !isPreferencesOpen && !isThemeSettingsOpen && !isMyProfileOpen);
+  const showDetailPane = !isMobileOrTablet || !!activeConversationId || isPreferencesOpen || isThemeSettingsOpen || isMyProfileOpen;
 
   return (
     <View style={[styles.rootContainer, { backgroundColor: colors.background }]}>
@@ -472,10 +498,26 @@ export default function ChatWebScreen() {
           userInitials={userInitials}
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="Account"
-          onProfilePress={() => setIsProfileModalOpen(true)}
-          onThemePress={() => setIsThemeSettingsOpen(true)}
-          onPreferencesPress={() => setIsPreferencesOpen(true)}
-          onPreferencePress={() => setIsPreferencesOpen(true)}
+          onProfilePress={() => {
+            setIsPreferencesOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsMyProfileOpen(true);
+          }}
+          onThemePress={() => {
+            setIsMyProfileOpen(false);
+            setIsPreferencesOpen(false);
+            setIsThemeSettingsOpen(true);
+          }}
+          onPreferencesPress={() => {
+            setIsMyProfileOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsPreferencesOpen(true);
+          }}
+          onPreferencePress={() => {
+            setIsMyProfileOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsPreferencesOpen(true);
+          }}
           onSignOut={signOut}
           onLogoPress={() => setMainNavId('chat')}
           primaryColor={colors.primary}
@@ -497,10 +539,30 @@ export default function ChatWebScreen() {
           userName={profile?.name || user?.email?.split('@')[0] || 'Mohammed Aman'}
           userSubtitle="My Account"
           userInitials={userInitials}
-          onProfilePress={() => setIsProfileModalOpen(true)}
-          onThemePress={() => setIsThemeSettingsOpen(true)}
-          onPreferencesPress={() => setIsPreferencesOpen(true)}
-          onPreferencePress={() => setIsPreferencesOpen(true)}
+          onProfilePress={() => {
+            setIsPreferencesOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsMyProfileOpen(true);
+            setIsDrawerOpen(false);
+          }}
+          onThemePress={() => {
+            setIsMyProfileOpen(false);
+            setIsPreferencesOpen(false);
+            setIsThemeSettingsOpen(true);
+            setIsDrawerOpen(false);
+          }}
+          onPreferencesPress={() => {
+            setIsMyProfileOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsPreferencesOpen(true);
+            setIsDrawerOpen(false);
+          }}
+          onPreferencePress={() => {
+            setIsMyProfileOpen(false);
+            setIsThemeSettingsOpen(false);
+            setIsPreferencesOpen(true);
+            setIsDrawerOpen(false);
+          }}
           onSignOut={signOut}
           primaryColor={colors.primary}
         />
@@ -609,7 +671,13 @@ export default function ChatWebScreen() {
                           unreadCount={item.unreadCount}
                           isActive={item.id === activeConversationId}
                           isGroup={item.type === 'group'}
-                          onClick={() => setActiveConversationId(item.id)}
+                          onClick={() => {
+                            setIsMyProfileOpen(false);
+                            setIsThemeSettingsOpen(false);
+                            setIsPreferencesOpen(false);
+                            setShowContactInfo(false);
+                            setActiveConversationId(item.id);
+                          }}
                         />
                       );
                     })
@@ -632,6 +700,9 @@ export default function ChatWebScreen() {
                     groups={groupsList}
                     contacts={contacts}
                     onChatClick={(g) => {
+                      setIsMyProfileOpen(false);
+                      setIsThemeSettingsOpen(false);
+                      setIsPreferencesOpen(false);
                       setActiveConversationId(g.id);
                       setActiveTab('chats');
                     }}
@@ -654,7 +725,7 @@ export default function ChatWebScreen() {
             </View>
           )}
 
-          {/* ──────────────── Right Detail Pane: Active Chat / Preferences / Theme Settings ──────────────── */}
+          {/* ──────────────── Right Detail Pane: Active Chat / Preferences / Theme Settings / Profile ──────────────── */}
           {showDetailPane && (
             <View style={[styles.rightViewport, { backgroundColor: colors.background, borderLeftColor: colors.border }]}>
               {isPreferencesOpen ? (
@@ -674,6 +745,12 @@ export default function ChatWebScreen() {
                     resetColorTheme();
                   }}
                   availableThemes={colorThemes}
+                />
+              ) : isMyProfileOpen ? (
+                <ContactInfoView
+                  conversation={myProfileConversation}
+                  messages={messages}
+                  onClose={() => setIsMyProfileOpen(false)}
                 />
               ) : activeConversationId ? (
                 showContactInfo ? (
